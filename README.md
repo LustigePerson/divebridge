@@ -49,7 +49,19 @@ uv run divebridge ssi-push --send --site-id 1234 file.xlsx   # really upload
 uv run divebridge serve --reload          # web UI on http://localhost:8099
 ```
 
-Build the add-on container locally:
+### Test inside a real Supervisor (official devcontainer)
+
+Home Assistant ships a devcontainer that runs a complete Supervisor + Home Assistant inside Docker,
+so the add-on can be installed and started exactly like on a real host:
+
+1. VS Code with the *Dev Containers* extension and Docker installed.
+2. Open this folder in VS Code → "Reopen in Container" (uses `.devcontainer.json`).
+3. Run the task **Start Home Assistant** (`supervisor_run`). First start takes a few minutes.
+4. Open <http://localhost:7123>, finish onboarding, then Settings → Add-ons/Apps → Store:
+   divebridge is listed under *Local*. Or use the tasks **Install divebridge** / **Rebuild and start divebridge**.
+5. Ingress, options and `/share` behave like in production. Logs: task output or the add-on's log tab.
+
+Build the add-on container locally (without Supervisor):
 
 ```bash
 docker build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.21 -t divebridge .

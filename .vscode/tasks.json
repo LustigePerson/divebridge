@@ -1,0 +1,34 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start Home Assistant",
+      "type": "shell",
+      "command": "supervisor_run",
+      "group": { "kind": "test", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Install divebridge",
+      "type": "shell",
+      "command": "ha apps install local_divebridge",
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Start divebridge (with logs)",
+      "type": "shell",
+      "command": "ha apps stop local_divebridge; ha apps start local_divebridge; ha apps logs -f local_divebridge",
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Rebuild and start divebridge",
+      "type": "shell",
+      "command": "ha apps rebuild --force local_divebridge; ha apps start local_divebridge; ha apps logs -f local_divebridge",
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    }
+  ]
+}

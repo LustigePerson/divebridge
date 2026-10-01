@@ -17,6 +17,7 @@ payloads/
 .env
 
 # editors / OS
-.vscode/
+.vscode/*
+!.vscode/tasks.json
 .idea/
 .DS_Store
