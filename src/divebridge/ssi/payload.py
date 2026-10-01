@@ -50,6 +50,9 @@ class DiveOptions:
     buddy_ids: list[int] = field(default_factory=list)
     notes: str | None = None  # appended to the computer's memo
     rating: int | None = None  # 1-5
+    # Verified 2026-10-01: with this flag the MySSI app shows a computer icon in the list and a
+    # "dive computer" field in the dive details; the reference project sends false.
+    mark_imported: bool = True
 
     def resolve_watertype(self, site_bow: str | None) -> None:
         """Unset water type -> salt/fresh from the dive site's body of water, if known."""
@@ -62,7 +65,7 @@ class DiveOptions:
             return DiveOptions(**vars(self))
         out = DiveOptions(**vars(self))
         for k, v in vars(override).items():
-            if v not in (None, "", [], ()):
+            if isinstance(v, bool) or v not in (None, "", [], ()):
                 setattr(out, k, v)
         return out
 
@@ -253,7 +256,9 @@ def build_payload(dive: Dive, log_nr: int, site_id: int | None,
         "odin_user_log_verified": None,
         "timestamp": None,
         # --- dive computer ---
-        "odin_user_log_diveComputer": device_name,
+        # legacy free-text field; the MySSI app shows it in the "dive partner / center" line,
+        # native integrations (Mares sample) leave it empty – so do we
+        "odin_user_log_diveComputer": "",
         "odin_user_log_diveComputerData": None,
         "odin_user_log_divecomputer_id": None,
         "odin_user_log_divecomputer_name": device_name,
@@ -263,7 +268,7 @@ def build_payload(dive: Dive, log_nr: int, site_id: int | None,
         "odin_user_log_divecomputer_manufacturer": comp.manufacturer if comp else None,
         "odin_user_log_divecomputer_ref": comp.ref if comp else None,
         "odin_user_log_divecomputer_dive_ref": dive.dive_ref,
-        "odin_user_log_divecomputer_imported": False,
+        "odin_user_log_divecomputer_imported": bool(opt.mark_imported),
         "odin_user_log_divecomputer_raw_data_header": None,
         "odin_user_log_divecomputer_raw_data_details": None,
         "odin_user_log_divecomputer_max_sensor_depth": None,

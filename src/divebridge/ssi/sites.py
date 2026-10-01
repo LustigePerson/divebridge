@@ -95,7 +95,9 @@ class SiteIndex:
                 return self._match(s)
         return None
 
-    def search(self, query: str, limit: int = 20) -> list[SiteMatch]:
+    def search(self, query: str, limit: int = 20, prefer: set[int] | None = None) -> list[SiteMatch]:
+        """Substring search by name. Exact name > prefix > contains; sites in `prefer` (e.g. the
+        user's previously visited sites) are ranked first because names are far from unique."""
         q = query.strip().lower()
         if len(q) < 2:
             return []
@@ -104,6 +106,8 @@ class SiteIndex:
             name = s["odin_dive_sites_name"].lower()
             if q in name:
                 score = 1.0 if name == q else (0.9 if name.startswith(q) else 0.5 + difflib.SequenceMatcher(None, q, name).ratio() / 4)
+                if prefer and int(s["odin_dive_sites_id"]) in prefer:
+                    score += 1.0
                 results.append(self._match(s, score))
         results.sort(key=lambda m: (-m.score, m.name))
         return results[:limit]

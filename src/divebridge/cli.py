@@ -163,15 +163,19 @@ def cmd_ssi_push(args: argparse.Namespace, settings: Settings) -> int:
     site_ids: dict[int, int | None] = {}
     if args.site_id:
         site_ids = {i: args.site_id for i in range(len(dives))}
-    elif not args.no_site_lookup and settings.ssi_email:
+    elif not args.no_site_lookup and (settings.ssi_email or client.has_token):
         idx = SiteIndex(settings.data_dir, client)
+        visited = {int(s["odin_dive_sites_id"]) for s in client.get_divelog().get("logbook_sites", []) if s.get("odin_dive_sites_id")}
         for i, d in enumerate(dives):
             if d.site and d.site.name:
-                hits = idx.search(d.site.name, limit=1)
+                hits = idx.search(d.site.name, limit=1, prefer=visited)
                 site_ids[i] = hits[0].id if hits else None
                 print(f"site for {d.site.name!r}: {hits[0].label if hits else 'not found'}")
+    from .ssi.payload import DiveOptions
+
     idx = SiteIndex(settings.data_dir, client) if settings.ssi_email or client.has_token else None
     results = push_dives(client, dives, site_ids, dry_run=not args.send, skip_duplicates=not args.allow_duplicates,
+                         options=DiveOptions(mark_imported=not args.no_imported_flag),
                          site_bow=(lambda sid: (m.bow if (m := idx.get(sid)) else None)) if idx else None)
     for r in results:
         print(f"{r.status:18s} {r.dive.summary()}  -> {r.message}")
@@ -244,6 +248,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--site-id", type=int, help="SSI dive site id for all dives")
     s.add_argument("--no-site-lookup", action="store_true")
     s.add_argument("--allow-duplicates", action="store_true")
+    s.add_argument("--no-imported-flag", action="store_true", help="do not mark dives as imported from a dive computer")
     s.add_argument("--dump-payload", metavar="DIR", help="write payload JSON per dive into DIR")
     s.set_defaults(fn=cmd_ssi_push)
 

@@ -77,6 +77,8 @@ def compare(payload: dict[str, Any], stored: dict[str, Any]) -> list[FieldDiff]:
             sent, got = sent.replace("+", " ")[:16], got[:16]
         a, b = _norm(sent), _norm(got)
         ok = a == b or (isinstance(a, float) and isinstance(b, float) and abs(a - b) < 0.06)
+        if pk == "odin_user_log_divetime" and isinstance(a, float) and isinstance(b, float):
+            ok = round(a) == b  # SSI stores whole minutes
         if a is None and b in (0.0, [], ""):  # SSI stores "unset" as 0 / empty
             ok = True
         out.append(FieldDiff(label, sent, got, ok))

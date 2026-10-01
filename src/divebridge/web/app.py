@@ -158,6 +158,7 @@ def _options_from_form(form: Any, suffix: str = "") -> DiveOptions:
         buddy_ids=[int(b) for b in form.getlist(f"o_buddy{suffix}") if str(b).isdigit()],
         notes=str(g("notes") or "").strip() or None,
         rating=int(rating) if rating else None,
+        mark_imported=(form.get("mark_imported") != "0") if not suffix else True,
     )
 
 
@@ -247,11 +248,12 @@ def _enrich(batch: Batch) -> None:
         return
     logbook = state.refresh_logbook()
     details = logbook.get("logbook_details", []) if logbook else []
+    visited = {int(s["odin_dive_sites_id"]) for s in (logbook or {}).get("logbook_sites", []) if s.get("odin_dive_sites_id")}
     for i, d in enumerate(batch.dives):
         batch.existing[i] = find_existing(d, details) if details else None
         if d.site and d.site.name and i not in batch.site_suggestions:
             try:
-                hits = state.sites().search(d.site.name, limit=1)
+                hits = state.sites().search(d.site.name, limit=1, prefer=visited)
                 batch.site_suggestions[i] = hits[0] if hits else None
             except Exception as e:  # noqa: BLE001
                 state.last_error = f"SSI site index: {e}"
@@ -333,6 +335,8 @@ def api_sites(q: str = "", limit: int = 15):
     if not state.ssi_configured:
         return JSONResponse([], status_code=200)
     try:
-        return [{"id": m.id, "label": m.label} for m in state.sites().search(q, limit=limit)]
+        visited = {int(s["odin_dive_sites_id"]) for s in (state.logbook or {}).get("logbook_sites", []) if s.get("odin_dive_sites_id")}
+        return [{"id": m.id, "label": m.label + (" ★" if m.id in visited else "")}
+                for m in state.sites().search(q, limit=limit, prefer=visited)]
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": str(e)}, status_code=503)

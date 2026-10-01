@@ -9,6 +9,7 @@ def test_compare_roundtrip(sample_dives):
     stored["odin_user_log_weight_kg"] = 0               # unset comes back as 0
     stored["odin_user_log_si_before"] = 7               # pretend SSI converted seconds to minutes
     stored["odin_user_log_datetime"] = "2025-10-15 02:56"  # SSI normalises the timestamp
+    stored["odin_user_log_divetime"] = 22                   # SSI stores whole minutes (22.0 -> 22)
     diffs = compare(p, stored)
     bad = {d.label for d in diffs if not d.ok}
     assert bad == {"surface interval"}

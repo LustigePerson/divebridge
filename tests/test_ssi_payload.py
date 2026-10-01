@@ -30,6 +30,9 @@ def test_payload_values(sample_dives):
     assert p["odin_user_log_watertemp_max_c"] == 23.9
     assert p["odin_user_log_ean"] is None
     assert p["odin_user_log_divecomputer_manufacturer"] == "Cressi"
+    assert p["odin_user_log_divecomputer_name"] == "Cressi Da Vinci"
+    assert p["odin_user_log_diveComputer"] == ""  # shown as partner/center text by the app
+    assert p["odin_user_log_divecomputer_imported"] is True  # app shows computer icon + field
     assert p["odin_user_log_divecomputer_ref"] == "Cressi Da Vinci_000002"
     assert p["odin_user_log_divecomputer_dive_ref"] == "2025-10-15T02:56:07"
     assert p["odin_user_log_tankPressureDataset"] is None
@@ -62,6 +65,7 @@ def test_options_merge_and_payload(sample_dives):
     merged = defaults.merged(override)
     assert merged.weight_kg == 8 and merged.tank_volume_l == 12 and merged.tanktype_id == 20
     assert merged.divetype_id == 24
+    assert DiveOptions(mark_imported=True).merged(DiveOptions(mark_imported=False)).mark_imported is False
     p = build_payload(sample_dives[0], log_nr=1, site_id=None, options=merged)
     assert p["odin_user_log_var_tanktype_id"] == 20
     assert p["odin_user_log_tank_vol_l"] == 12

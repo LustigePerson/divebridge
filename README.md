@@ -109,6 +109,11 @@ Known facts and quirks:
 - Gradient factors are sent as the export reports them (e.g. 89/89) even though DiveSync displays
   the conservatism preset as "C0 90/90". The export has no column for the preset.
 - Memo from DiveSync becomes the SSI note; UI notes are appended.
+- Dive time is stored as whole minutes (22.6 -> 23); the serial number loses leading zeros.
+- `odin_user_log_divecomputer_imported: true` makes the app show a computer icon and a "dive computer"
+  field (the reference sends false). Default on, switchable in the UI / `--no-imported-flag`.
+- `odin_user_log_diveComputer` (legacy free text) is shown by the app in the partner/center line,
+  so it is left empty; the computer is identified by the `divecomputer_*` fields.
 - Deleted dives are not returned by the SSI API at all, so they do not count as duplicates.
 - The MySSI app caches the logbook: after an upload, pull to refresh or restart the app, and
   remember the list is sorted by dive date, not by upload time.

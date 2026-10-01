@@ -88,6 +88,8 @@
     <a class="btn" href="{{ root }}/batch/{{ batch.id }}/uddf">⬇ Download UDDF</a>
     <label><input type="checkbox" name="dry_run" value="1" checked> dry run (show payload, send nothing)</label>
     <label><input type="checkbox" name="allow_duplicates" value="1"> allow duplicates</label>
+    <label><input type="checkbox" name="mark_imported_ui" value="1" checked onchange="document.getElementById('mark_imported').value = this.checked ? '1' : '0'"> mark as imported from dive computer (icon + computer field in the app)</label>
+    <input type="hidden" name="mark_imported" id="mark_imported" value="1">
     <button class="primary" type="submit" {% if not state.ssi_configured %}disabled{% endif %}>⬆ Upload to SSI</button>
   </div>
   </form>
