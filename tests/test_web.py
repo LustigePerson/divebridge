@@ -152,3 +152,9 @@ def test_diag_page_and_echo(sample_bytes):
     r = c.post("/diag/echo", files=[("files", ("z.zip", sample_bytes, "application/zip"))])
     assert "z.zip" in r.text and "%d bytes" % len(sample_bytes) in r.text
     assert "no file part" in c.post("/diag/echo").text
+
+
+def test_no_store_header():
+    c = TestClient(app)
+    assert c.get("/").headers["cache-control"] == "no-store"
+    assert c.get("/health").headers["cache-control"] == "no-store"

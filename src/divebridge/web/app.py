@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import os
 import secrets
 import shutil
 import zipfile
@@ -33,6 +34,19 @@ from ..ssi.sites import SiteIndex, SiteMatch
 
 log = logging.getLogger(__name__)
 HA_INGRESS_IP = "172.30.32.2"
+
+
+def configure_logging() -> None:
+    """Under uvicorn nothing configures the application loggers, so INFO lines were silently
+    dropped. Timestamped format, level from DIVEBRIDGE_LOG_LEVEL (add-on option log_level)."""
+    level = os.environ.get("DIVEBRIDGE_LOG_LEVEL", "info").upper()
+    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+                        datefmt="%Y-%m-%d %H:%M:%S", force=True)
+    for name in ("httpx", "httpcore"):  # never log request URLs (SSI API carries credentials)
+        logging.getLogger(name).setLevel(logging.WARNING)
+
+
+configure_logging()
 MAX_BATCHES = 20  # older uploads (and their files under data_dir/uploads) are dropped
 
 
@@ -181,6 +195,8 @@ async def ingress_guard(request: Request, call_next):
         log.warning("rejected request from %s (ingress-only mode; expected %s)", request.client.host, HA_INGRESS_IP)
         return Response("forbidden (ingress only)", status_code=403)
     response = await call_next(request)
+    # dynamic pages must never be served from a browser/WebView cache (stale forms, stale batches)
+    response.headers["Cache-Control"] = "no-store"
     # one line per request so the add-on log shows what the browser/app actually sends
     log.info("%s %s -> %s (ua: %s)", request.method, request.url.path, response.status_code,
              request.headers.get("user-agent", "-")[:120])

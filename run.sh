@@ -22,7 +22,9 @@ mkdir -p "$DIVEBRIDGE_OUTPUT_DIR" 2>/dev/null || true
 export DIVEBRIDGE_DATA_DIR="${DIVEBRIDGE_DATA_DIR:-/data/divebridge}"
 export DIVEBRIDGE_INGRESS_ONLY="${DIVEBRIDGE_INGRESS_ONLY:-1}"
 LOG_LEVEL="$(opt log_level info)"
+export DIVEBRIDGE_LOG_LEVEL="$LOG_LEVEL"
 
 echo "[divebridge] starting on port 8099 (ingress only: ${DIVEBRIDGE_INGRESS_ONLY}, output: ${DIVEBRIDGE_OUTPUT_DIR})"
 # no --proxy-headers: the ingress guard must see the real peer (HA core, 172.30.32.2), not X-Forwarded-For
-exec python -m uvicorn divebridge.web.app:app --host 0.0.0.0 --port 8099 --log-level "${LOG_LEVEL}"
+# --no-access-log: the app logs every request itself, with timestamp and user agent
+exec python -m uvicorn divebridge.web.app:app --host 0.0.0.0 --port 8099 --log-level "${LOG_LEVEL}" --no-access-log
