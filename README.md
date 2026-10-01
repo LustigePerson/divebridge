@@ -21,16 +21,17 @@ The code is split into *importers* (input format → canonical dive model) and *
 
 Everything is also available on the command line (`divebridge --help`).
 
-## Install as Home Assistant add-on (local add-on)
+## Install as Home Assistant add-on
 
-The repository root *is* the add-on (it contains `config.yaml`, `Dockerfile`, `run.sh`).
+**From GitHub (recommended):** Settings → Add-ons → Add-on Store → ⋮ → *Repositories* → add
+`https://github.com/LustigePerson/divebridge`. "divebridge" appears in the store; install it, set
+`ssi_email` / `ssi_password` in the options (optional – you can also log in inside the UI), start it,
+enable *Show in sidebar*. Updates arrive through the store like for any other add-on.
 
-1. Copy/clone this repository to `/addons/divebridge` on your HA host (Samba share "addons",
-   or the SSH/Terminal add-on: `cd /addons && git clone <repo-url> divebridge`).
-2. Settings → Add-ons → Add-on Store → ⋮ → *Check for updates*. "divebridge" appears under
-   **Local add-ons**. Install, set `ssi_email` / `ssi_password` in the options (optional – you can
-   also log in inside the UI), start it, enable *Show in sidebar*.
-3. Open "divebridge" from the sidebar – also in the HA companion app while on holiday.
+**As a local add-on:** copy/clone this repository to `/addons/divebridge` on the HA host (Samba share
+"addons" or the SSH add-on), then ⋮ → *Check for updates*; it shows up under *Local add-ons*.
+
+Open "divebridge" from the sidebar – also in the HA companion app while on holiday.
 
 UDDF files are additionally written to `/share/divebridge/uddf/` (configurable).
 

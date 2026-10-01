@@ -1,0 +1,5 @@
+# Marks this Git repository as a Home Assistant add-on ("app") repository so it can be added in the
+# add-on store via its URL. The add-on itself is defined by config.yaml in this folder.
+name: divebridge add-ons
+url: https://github.com/LustigePerson/divebridge
+maintainer: Benedikt Reiz
