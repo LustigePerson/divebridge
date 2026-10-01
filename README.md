@@ -110,6 +110,10 @@ Known facts and quirks:
   the conservatism preset as "C0 90/90". The export has no column for the preset.
 - Memo from DiveSync becomes the SSI note; UI notes are appended.
 - Deleted dives are not returned by the SSI API at all, so they do not count as duplicates.
+- The MySSI app caches the logbook: after an upload, pull to refresh or restart the app, and
+  remember the list is sorted by dive date, not by upload time.
+- Variable lists (weather, entry, body of water, special dive, …) come from `what=get_divelog_vars`;
+  a copy is bundled for offline use. Multi-value "special dive" is sent as `"40,47"`.
 
 ## Roadmap
 

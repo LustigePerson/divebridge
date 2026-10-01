@@ -20,6 +20,11 @@ or push them to your SSI / MySSI logbook.
 4. *Download UDDF* or *Upload to SSI*. Keep *dry run* ticked the first time: it shows the payload
    without sending anything.
 
+## After uploading
+
+The MySSI app does not notice server-side changes immediately: pull to refresh the logbook or
+restart the app. Dives are listed by dive date, so an older dive may appear further down.
+
 ## Notes
 
 - SSI has no official API. The add-on uses the same endpoints as the MySSI app; this may stop
