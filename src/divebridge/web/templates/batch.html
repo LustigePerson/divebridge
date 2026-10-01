@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>2. Review {{ batch.dives|length }} dive(s)</h2>
+  <p class="muted">{{ batch.files|join(' · ') }}</p>
+  {% for e in batch.errors %}<div class="alert">{{ e }}</div>{% endfor %}
+
+  <form method="post" action="{{ root }}/batch/{{ batch.id }}/ssi" id="pushform">
+  <table>
+    <tr><th><input type="checkbox" id="all" checked></th><th>Date</th><th>Duration</th><th>Max</th><th class="hide-sm">Temp</th><th>Site (SSI)</th><th>Status</th></tr>
+    {% for d in batch.dives %}
+    {% set i = loop.index0 %}
+    {% set ex = batch.existing.get(i) %}
+    <tr>
+      <td><input type="checkbox" name="selected" value="{{ i }}" {% if not ex %}checked{% endif %}></td>
+      <td>{{ d.start.strftime('%Y-%m-%d %H:%M') }}<br><span class="muted">#{{ d.number or '?' }} · {{ d.computer.display_name if d.computer else '' }}</span></td>
+      <td>{{ d.duration_min }} min</td>
+      <td>{{ '%.1f'|format(d.max_depth_m) }} m</td>
+      <td class="hide-sm">{% if d.water_temp_min_c is not none %}{{ d.water_temp_min_c }} °C{% endif %}</td>
+      <td>
+        {% set sug = batch.site_suggestions.get(i) %}
+        <input type="text" class="sitesearch" data-i="{{ i }}" placeholder="search SSI site…" value="{{ d.site.name if d.site and d.site.name else '' }}" autocomplete="off">
+        <select name="site_id_{{ i }}" id="site_{{ i }}">
+          <option value="">— no site —</option>
+          {% if sug %}<option value="{{ sug.id }}" selected>{{ sug.label }}</option>{% endif %}
+        </select>
+      </td>
+      <td>{% if ex %}<span class="warn">already in SSI (#{{ ex.odin_user_log_nr }})</span>{% elif state.ssi_configured %}<span class="ok">new</span>{% else %}<span class="muted">SSI not logged in</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <div class="row" style="margin-top:14px">
+    <a class="btn" href="{{ root }}/batch/{{ batch.id }}/uddf">⬇ Download UDDF</a>
+    <label><input type="checkbox" name="dry_run" value="1" checked> dry run (show payload, send nothing)</label>
+    <label><input type="checkbox" name="allow_duplicates" value="1"> allow duplicates</label>
+    <button class="primary" type="submit" {% if not state.ssi_configured %}disabled{% endif %}>⬆ Upload to SSI</button>
+  </div>
+  </form>
+</div>
+
+<script>
+const root = "{{ root }}";
+document.getElementById('all').addEventListener('change', e => {
+  document.querySelectorAll('input[name=selected]').forEach(c => c.checked = e.target.checked);
+});
+let timer = null;
+document.querySelectorAll('.sitesearch').forEach(inp => {
+  inp.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      const q = inp.value.trim();
+      if (q.length < 2) return;
+      const sel = document.getElementById('site_' + inp.dataset.i);
+      try {
+        const r = await fetch(root + '/api/sites?q=' + encodeURIComponent(q));
+        const hits = await r.json();
+        sel.innerHTML = '<option value="">— no site —</option>' +
+          (Array.isArray(hits) ? hits.map(h => `<option value="${h.id}">${h.label}</option>`).join('') : '');
+        if (Array.isArray(hits) && hits.length) sel.selectedIndex = 1;
+      } catch (e) { console.error(e); }
+    }, 300);
+  });
+});
+</script>
+{% endblock %}

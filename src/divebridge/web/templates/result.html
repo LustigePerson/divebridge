@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>3. {% if dry_run %}Dry run{% else %}Upload result{% endif %}</h2>
+  {% if not results %}<p class="err">Nothing was processed.</p>{% endif %}
+  <table>
+    <tr><th>Dive</th><th>Status</th><th>Log #</th><th>Site</th><th>Message</th></tr>
+    {% for r in results %}
+    <tr>
+      <td>{{ r.dive.start.strftime('%Y-%m-%d %H:%M') }} · {{ r.dive.duration_min }} min · {{ '%.1f'|format(r.dive.max_depth_m) }} m</td>
+      <td class="{% if r.status == 'uploaded' %}ok{% elif r.status == 'error' %}err{% elif r.status == 'skipped-duplicate' %}warn{% else %}muted{% endif %}">{{ r.status }}</td>
+      <td>{{ r.log_nr or '' }}</td>
+      <td>{{ r.site_id or '—' }}</td>
+      <td>{{ r.message }}</td>
+    </tr>
+    {% if r.payload %}
+    <tr><td colspan="5"><details><summary class="muted">payload</summary><pre>{{ payload_json(r) }}</pre></details></td></tr>
+    {% endif %}
+    {% endfor %}
+  </table>
+  <div class="row" style="margin-top:14px">
+    <a class="btn" href="{{ root }}/batch/{{ batch.id }}">← back to review</a>
+    <a class="btn" href="{{ root }}/">new upload</a>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>divebridge</title>
+<style>
+  :root { --bg:#f6f8fa; --fg:#1f2328; --muted:#636c76; --card:#fff; --line:#d0d7de; --accent:#0969da; --ok:#1a7f37; --warn:#9a6700; --err:#cf222e; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --card:#161b22; --line:#30363d; --accent:#58a6ff; --ok:#3fb950; --warn:#d29922; --err:#f85149; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding: 12px 16px; border-bottom: 1px solid var(--line); display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; }
+  header h1 { margin:0; font-size: 18px; } header a { color: inherit; text-decoration:none; }
+  header .status { margin-left:auto; color:var(--muted); font-size: 13px; }
+  main { padding: 16px; max-width: 1100px; margin: 0 auto; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  table { width:100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align:left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  input[type=text], input[type=email], input[type=password], select { width:100%; padding: 7px 8px; border:1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font-size: 14px; }
+  button, .btn { display:inline-block; padding: 8px 14px; border-radius: 6px; border:1px solid var(--line); background: var(--card); color: var(--fg); font-size: 14px; cursor:pointer; text-decoration:none; }
+  button.primary { background: var(--accent); color: #fff; border-color: transparent; }
+  .muted { color: var(--muted); } .ok { color: var(--ok); } .warn { color: var(--warn); } .err { color: var(--err); }
+  .row { display:flex; gap: 10px; flex-wrap: wrap; align-items:center; }
+  .alert { padding: 10px 12px; border-radius: 6px; border: 1px solid var(--err); color: var(--err); margin-bottom: 12px; }
+  details pre { max-height: 300px; overflow:auto; font-size: 12px; background: var(--bg); padding: 8px; }
+  @media (max-width: 700px) { .hide-sm { display:none; } td, th { padding: 6px 4px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="{{ root }}/">🤿 divebridge</a></h1>
+  <span class="muted">v{{ version }}</span>
+  <span class="status">
+    {% if state.ssi_configured %}SSI: {{ state.email }}{% else %}SSI: not logged in{% endif %}
+  </span>
+</header>
+<main>
+{% if state.last_error %}<div class="alert">{{ state.last_error }}</div>{% endif %}
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

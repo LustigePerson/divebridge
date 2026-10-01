@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>1. Upload dive computer export</h2>
+  <form method="post" action="{{ root }}/upload" enctype="multipart/form-data" class="row">
+    <input type="file" name="files" multiple accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+    <button class="primary" type="submit">Upload &amp; review</button>
+  </form>
+  <p class="muted">Supported: Cressi DiveSync Excel export (DiveLog/DiveProfile/TankData). Several files at once are fine.</p>
+</div>
+
+<div class="card">
+  <h2>SSI account</h2>
+  {% if state.ssi_configured %}
+    <form method="post" action="{{ root }}/logout" class="row">
+      <span>Logged in as <b>{{ state.email }}</b>{% if state.settings.ssi_email %} (from add-on options){% endif %}</span>
+      <button type="submit">Log out</button>
+    </form>
+  {% else %}
+    <form method="post" action="{{ root }}/login" class="row">
+      <input type="email" name="email" placeholder="MySSI e-mail" required style="max-width:280px">
+      <input type="password" name="password" placeholder="password" required style="max-width:200px">
+      <button type="submit">Log in</button>
+    </form>
+    <p class="muted">Credentials stay in memory of this add-on only. Set them in the add-on options to avoid typing them.</p>
+  {% endif %}
+</div>
+
+{% if batches %}
+<div class="card">
+  <h2>Recent uploads</h2>
+  <table>
+    <tr><th>Time</th><th>Files</th><th>Dives</th><th></th></tr>
+    {% for b in batches %}
+    <tr><td>{{ b.created.strftime('%H:%M') }}</td><td>{{ b.files|join(', ') }}</td><td>{{ b.dives|length }}</td>
+        <td><a class="btn" href="{{ root }}/batch/{{ b.id }}">open</a></td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}
