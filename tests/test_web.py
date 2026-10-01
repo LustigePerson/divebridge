@@ -114,3 +114,21 @@ def test_push_with_options_dry_run(sample_bytes, monkeypatch):
     json.dumps(res.payload)
     webapp.state.email = webapp.state.password = None
     webapp.state.reset_client()
+
+
+def test_zip_upload(tmp_path):
+    import io
+    import zipfile
+    from pathlib import Path
+
+    d = Path(__file__).parent / "data" / "cressi"
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        for f in d.glob("SKIFF_*.xlsx"):
+            zf.writestr(f"exports/{f.name}", f.read_bytes())
+        zf.writestr("exports/readme.txt", "ignore me")
+    c = TestClient(app)
+    r = c.post("/upload", files=[("files", ("exports.zip", buf.getvalue(), "application/zip"))], follow_redirects=True)
+    assert r.status_code == 200
+    assert "Review 3 dive(s)" in r.text
+    assert "readme.txt: unknown format" in r.text

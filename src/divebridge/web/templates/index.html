@@ -3,10 +3,10 @@
 <div class="card">
   <h2>1. Upload dive computer export</h2>
   <form method="post" action="{{ root }}/upload" enctype="multipart/form-data" class="row">
-    <input type="file" name="files" multiple accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+    <input type="file" name="files" multiple required>
     <button class="primary" type="submit">Upload &amp; review</button>
   </form>
-  <p class="muted">Supported: Cressi DiveSync Excel export (DiveLog/DiveProfile/TankData). Several files at once are fine.</p>
+  <p class="muted">Supported: Cressi DiveSync Excel exports, several at once, or one ZIP containing them (on a phone: select the files in the file manager → compress → upload the ZIP).</p>
 </div>
 
 <div class="card">

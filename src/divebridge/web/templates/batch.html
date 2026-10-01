@@ -198,15 +198,15 @@ document.querySelectorAll('.sitesearch').forEach(inp => {
 document.querySelectorAll('.siteselect').forEach(sel => sel.addEventListener('change', () => updateMeta(sel.dataset.i)));
 document.querySelectorAll('.siteselect').forEach(sel => updateMeta(sel.dataset.i));
 
+const info = document.getElementById('locinfo');
 document.getElementById('locate').addEventListener('click', () => {
-  const info = document.getElementById('locinfo');
   if (!navigator.geolocation) { info.textContent = 'geolocation not available in this browser'; return; }
   info.textContent = 'locating…';
   navigator.geolocation.getCurrentPosition(p => {
     pos = {lat: p.coords.latitude, lon: p.coords.longitude};
     info.textContent = `position ${pos.lat.toFixed(4)}, ${pos.lon.toFixed(4)} – lists re-sorted by distance`;
     document.querySelectorAll('.sitesearch').forEach(inp => query(inp.dataset.i, inp.value.trim()));
-  }, err => { info.textContent = 'could not get position: ' + err.message; }, {enableHighAccuracy: true, timeout: 15000});
+  }, err => { info.textContent = 'could not get position: ' + err.message + ' (needs HTTPS or localhost)'; }, {enableHighAccuracy: true, timeout: 15000});
 });
 
 // ---- map overlay (Leaflet + OpenStreetMap)

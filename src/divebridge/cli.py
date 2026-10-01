@@ -18,10 +18,15 @@ from .ssi.sites import SiteIndex
 
 
 def _load(paths: list[str]) -> list[Dive]:
+    from .importers.registry import expand_archive, is_zip_archive
+
     dives: list[Dive] = []
     for p in paths:
         path = Path(p)
-        dives.extend(parse_file(path.name, path.read_bytes()))
+        data = path.read_bytes()
+        entries = expand_archive(path.name, data) if is_zip_archive(path.name, data) else [(path.name, data)]
+        for name, blob in entries:
+            dives.extend(parse_file(name, blob))
     dives.sort(key=lambda d: d.start)
     return dives
 

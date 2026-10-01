@@ -20,6 +20,7 @@ from .. import __version__
 from ..exporters.ssi import PushResult, push_dives
 from ..exporters.uddf import dives_to_uddf, uddf_filename
 from ..importers import ImportError_, detect, parse_file
+from ..importers.registry import expand_archive, is_zip_archive
 from ..model import Dive
 from ..settings import Settings
 from ..ssi.client import APIError, SsiClient
@@ -219,11 +220,19 @@ async def upload(request: Request, files: list[UploadFile] = File(...)):
     bid = secrets.token_hex(4)
     batch = Batch(id=bid, created=datetime.now(), files=[], dives=[])
     upload_dir = settings.data_dir / "uploads" / bid
+    incoming: list[tuple[str, bytes]] = []
     for f in files:
         data = await f.read()
         name = Path(f.filename or "upload").name
         if not data:
             continue
+        if is_zip_archive(name, data):
+            inner = expand_archive(name, data)
+            incoming.extend(inner)
+            batch.files.append(f"{name} (zip, {len(inner)} files)")
+        else:
+            incoming.append((name, data))
+    for name, data in incoming:
         upload_dir.mkdir(parents=True, exist_ok=True)
         (upload_dir / name).write_bytes(data)
         imp = detect(name, data)

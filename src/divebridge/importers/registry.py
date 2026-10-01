@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import io
+import zipfile
 from pathlib import Path
 
 from ..model import Dive
@@ -26,6 +28,23 @@ def detect(filename: str, data: bytes) -> Importer | None:
         except Exception:  # noqa: BLE001 – sniffing must never crash
             continue
     return None
+
+
+def is_zip_archive(filename: str, data: bytes) -> bool:
+    """A ZIP that is not itself an importable format (xlsx is a ZIP too, hence the detect check)."""
+    return data.startswith(b"PK") and detect(filename, data) is None and zipfile.is_zipfile(io.BytesIO(data))
+
+
+def expand_archive(filename: str, data: bytes) -> list[tuple[str, bytes]]:
+    """Files inside a ZIP (one upload for many exports, handy on phones)."""
+    out: list[tuple[str, bytes]] = []
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        for info in zf.infolist():
+            name = Path(info.filename).name
+            if info.is_dir() or not name or name.startswith(("._", ".")) or "__MACOSX" in info.filename:
+                continue
+            out.append((name, zf.read(info)))
+    return out
 
 
 def parse_file(filename: str, data: bytes, importer: Importer | None = None) -> list[Dive]:
