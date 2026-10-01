@@ -23,8 +23,9 @@ or push them to your SSI / MySSI logbook.
 ## Several files from the phone
 
 The Home Assistant companion app hands over only one file per upload (its WebView ignores
-multi-selection results). Open the add-on page in the phone's browser instead; there several files
-or a ZIP can be uploaded at once.
+multi-selection results), so inside the app the upload field takes one file: a single export or a
+ZIP containing all exports (file manager: select the files → compress). In the phone's browser
+several files can be selected directly.
 
 ## After uploading
 

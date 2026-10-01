@@ -203,25 +203,6 @@ async def ingress_guard(request: Request, call_next):
     return response
 
 
-@app.get("/diag", response_class=HTMLResponse)
-def diag(request: Request, echo: str = ""):
-    """Diagnostics for file picking in WebViews (companion app): what reaches the page / the server."""
-    return render(request, "diag.html", ua=request.headers.get("user-agent", "-"),
-                  companion=is_companion_app(request), client=request.client.host if request.client else "-", echo=echo)
-
-
-@app.post("/diag/echo", response_class=HTMLResponse)
-async def diag_echo(request: Request, files: list[UploadFile] = File(default=[])):
-    parts = []
-    for f in files:
-        data = await f.read()
-        parts.append(f"{f.filename!r}: {len(data)} bytes, {f.content_type}")
-    msg = "server received " + (", ".join(parts) if parts else "no file part")
-    log.info("diag: %s", msg)
-    return render(request, "diag.html", ua=request.headers.get("user-agent", "-"),
-                  companion=is_companion_app(request), client=request.client.host if request.client else "-", echo=msg)
-
-
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "version": __version__}

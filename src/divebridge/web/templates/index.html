@@ -2,11 +2,25 @@
 {% block content %}
 <div class="card">
   <h2>1. Upload dive computer export</h2>
-  <form method="post" action="{{ root }}/upload" enctype="multipart/form-data" class="row">
-    <input type="file" name="files" {% if not companion %}multiple{% endif %} required>
-    <button class="primary" type="submit">Upload &amp; review</button>
+  <form method="post" action="{{ root }}/upload" enctype="multipart/form-data" class="row" id="uploadform">
+    <input type="file" name="files" id="files" {% if not companion %}multiple{% endif %} required>
+    <button class="primary" type="submit" id="uploadbtn">Upload &amp; review</button>
+    <span id="uploadinfo" class="muted"></span>
   </form>
-  <p class="muted"><a href="{{ root }}/diag">upload diagnostics</a></p>
+  <script>
+  (() => {
+    const form = document.getElementById('uploadform'), btn = document.getElementById('uploadbtn');
+    const info = document.getElementById('uploadinfo'), files = document.getElementById('files');
+    files.addEventListener('change', () => {
+      info.textContent = files.files.length ? files.files.length + ' file(s) selected, ' +
+        Math.round([...files.files].reduce((a, f) => a + f.size, 0) / 1024) + ' kB' : '';
+    });
+    form.addEventListener('submit', () => {
+      btn.disabled = true; btn.textContent = 'Uploading…';
+      info.textContent = 'uploading and parsing, please wait';
+    });
+  })();
+  </script>
   {% if companion %}
   <p class="muted">Companion app: pick <b>one</b> file – a single DiveSync export, or a <b>ZIP</b> with any number of exports
   (file manager: select the files → compress). The app's browser view cannot hand over multi-selections.</p>
