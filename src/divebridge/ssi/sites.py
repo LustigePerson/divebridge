@@ -28,6 +28,7 @@ class SiteMatch:
     lon: float | None
     score: float = 0.0
     bow: str | None = None  # body of water: "salt" | "fresh" | "artificial"
+    distance_m: float | None = None  # from a reference position, if one was given
 
     @property
     def label(self) -> str:
@@ -111,6 +112,30 @@ class SiteIndex:
                 results.append(self._match(s, score))
         results.sort(key=lambda m: (-m.score, m.name))
         return results[:limit]
+
+    def with_distance(self, matches: list[SiteMatch], lat: float, lon: float) -> list[SiteMatch]:
+        for m in matches:
+            if m.lat is not None and m.lon is not None:
+                m.distance_m = haversine_m(lat, lon, m.lat, m.lon)
+        return matches
+
+    def nearby(self, lat: float, lon: float, limit: int = 15, max_m: float = 100_000) -> list[SiteMatch]:
+        """Sites around a position, nearest first."""
+        found: list[tuple[float, dict[str, Any]]] = []
+        for s in self._load():
+            la, lo = s.get("odin_dive_sites_lat"), s.get("odin_dive_sites_lon")
+            if not la or not lo:
+                continue
+            d = haversine_m(lat, lon, la, lo)
+            if d <= max_m:
+                found.append((d, s))
+        found.sort(key=lambda x: x[0])
+        out = []
+        for d, s in found[:limit]:
+            m = self._match(s, 1.0)
+            m.distance_m = d
+            out.append(m)
+        return out
 
     def nearest(self, lat: float, lon: float, max_m: float = NEAREST_MAX_M) -> SiteMatch | None:
         best, best_d = None, float("inf")

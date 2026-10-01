@@ -265,7 +265,7 @@ def batch_page(request: Request, bid: str):
     batch = state.batches.get(bid)
     if batch is None:
         return RedirectResponse(url=f"{_root(request)}/", status_code=303)
-    return render(request, "batch.html", batch=batch)
+    return render(request, "batch.html", batch=batch, dive_facts=dive_facts)
 
 
 @app.get("/batch/{bid}/uddf")
@@ -330,13 +330,54 @@ async def batch_ssi(request: Request, bid: str):
                   payload_json=lambda r: json.dumps(r.payload, indent=1) if r.payload else "")
 
 
+def _site_json(m: SiteMatch, visited: set[int]) -> dict[str, Any]:
+    return {"id": m.id, "label": m.label + (" ★" if m.id in visited else ""), "name": m.name,
+            "lat": m.lat, "lon": m.lon, "bow": m.bow,
+            "distance_km": round(m.distance_m / 1000, 1) if m.distance_m is not None else None}
+
+
 @app.get("/api/sites")
-def api_sites(q: str = "", limit: int = 15):
+def api_sites(q: str = "", limit: int = 15, lat: float | None = None, lon: float | None = None):
+    """Name search; with lat/lon the hits carry distances, and an empty query lists sites nearby."""
     if not state.ssi_configured:
         return JSONResponse([], status_code=200)
     try:
         visited = {int(s["odin_dive_sites_id"]) for s in (state.logbook or {}).get("logbook_sites", []) if s.get("odin_dive_sites_id")}
-        return [{"id": m.id, "label": m.label + (" ★" if m.id in visited else "")}
-                for m in state.sites().search(q, limit=limit, prefer=visited)]
+        idx = state.sites()
+        if q.strip():
+            hits = idx.search(q, limit=limit, prefer=visited)
+            if lat is not None and lon is not None:
+                hits = idx.with_distance(hits, lat, lon)
+                hits.sort(key=lambda m: (m.distance_m if m.distance_m is not None else 1e12))
+        elif lat is not None and lon is not None:
+            hits = idx.nearby(lat, lon, limit=limit)
+        else:
+            hits = []
+        return [_site_json(m, visited) for m in hits]
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": str(e)}, status_code=503)
+
+
+def dive_facts(d: Dive) -> list[tuple[str, Any]]:
+    """Everything we know about a dive, for the ⓘ view on the review page."""
+    g = d.primary_gas
+    facts: list[tuple[str, Any]] = [
+        ("Start (local)", d.start.strftime("%Y-%m-%d %H:%M:%S")),
+        ("Duration", f"{d.duration_min:g} min ({d.duration_s} s)"),
+        ("Max / avg depth", f"{d.max_depth_m:.2f} m / {d.avg_depth_m if d.avg_depth_m is not None else '—'} m"),
+        ("Water temp min / max", f"{d.water_temp_min_c} / {d.water_temp_max_c} °C"),
+        ("Surface interval before", f"{d.surface_interval_s} s" if d.surface_interval_s else "—"),
+        ("Gas", f"{g.name} (O2 {g.o2:g} %, He {g.he:g} %)" + (f", {len(d.gases)} gases" if len(d.gases) > 1 else "")),
+        ("Tanks", ", ".join(f"#{t.index} {t.volume_l or '?'} l {t.start_bar or '?'}→{t.end_bar or '?'} bar" for t in d.tanks) or "none in export"),
+        ("GF low / high", f"{d.gf_low} / {d.gf_high}"),
+        ("Deco dive", "yes" if d.deco else "no"),
+        ("Samples", f"{len(d.samples)} (every {d.extra.get('sampling_s', '?')} s)"),
+        ("Dive computer", f"{d.computer.display_name} · serial {d.computer.serial}" if d.computer else "—"),
+        ("Site name in export", d.site.name if d.site and d.site.name else "—"),
+        ("Memo", d.notes or "—"),
+        ("Dive number (computer)", d.number),
+        ("Source", f"{d.source.filename} · {d.source.format} · id {d.source.dive_id}"),
+    ]
+    for k, v in d.extra.items():
+        facts.append((f"export: {k}", v))
+    return facts

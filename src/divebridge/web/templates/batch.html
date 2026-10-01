@@ -1,19 +1,40 @@
 {% extends "base.html" %}
+{% block head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
+<style>
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px 12px; }
+  .grid label, .grid .group { display:flex; flex-direction:column; gap:3px; font-size:13px; color: var(--muted); }
+  .checks { display:flex; flex-direction:column; gap:2px; max-height: 140px; overflow:auto; border:1px solid var(--line); border-radius:6px; padding:4px 6px; background: var(--bg); }
+  .checks label { flex-direction: row; align-items:center; gap:6px; color: var(--fg); }
+  .sitemeta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .sitemeta a { color: var(--accent); }
+  .iconbtn { border:none; background:none; cursor:pointer; font-size: 15px; padding: 0 4px; color: var(--accent); }
+  .facts td { padding: 3px 8px; font-size: 13px; } .facts td:first-child { color: var(--muted); white-space: nowrap; }
+  #mapmodal { position: fixed; inset: 0; background: rgba(0,0,0,.55); display:none; z-index: 1000; align-items:center; justify-content:center; }
+  #mapmodal .box { background: var(--card); width: min(96vw, 900px); height: min(85vh, 640px); border-radius: 10px; display:flex; flex-direction:column; overflow:hidden; }
+  #mapmodal .bar { display:flex; align-items:center; gap:10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  #map { flex: 1; }
+</style>
+{% endblock %}
+
 {% macro fields(sfx, is_override) %}
   {% set e = "" if not is_override else "(default)" %}
   {% for group, title in var_groups.items() %}
+  {% if group in multi_groups %}
+  <div class="group">{{ title }}
+    <div class="checks">
+      {% for vid, vname in var_options(group) %}<label><input type="checkbox" name="o_{{ group }}{{ sfx }}" value="{{ vid }}">{{ vname }}</label>{% endfor %}
+    </div>
+  </div>
+  {% else %}
   <label>{{ title }}
-    {% if group in multi_groups %}
-    <select name="o_{{ group }}{{ sfx }}" multiple size="4">
-      {% for vid, vname in var_options(group) %}<option value="{{ vid }}">{{ vname }}</option>{% endfor %}
-    </select>
-    {% else %}
     <select name="o_{{ group }}{{ sfx }}">
       <option value="">{% if is_override %}{{ e }}{% elif group == 'watertype' %}auto (from dive site){% else %}—{% endif %}</option>
       {% for vid, vname in var_options(group) %}<option value="{{ vid }}" {% if not is_override and ((group == 'divetype' and vid == 24) or (group == 'tanktype' and vid == 19)) %}selected{% endif %}>{{ vname }}</option>{% endfor %}
     </select>
-    {% endif %}
   </label>
+  {% endif %}
   {% endfor %}
   <label>Tank volume (l)<input type="text" inputmode="decimal" name="o_tank_volume_l{{ sfx }}" placeholder="{{ e or '12' }}"></label>
   <label>Start / end pressure (bar)
@@ -22,17 +43,15 @@
   <label>Visibility (m)<input type="text" inputmode="decimal" name="o_visibility_m{{ sfx }}" placeholder="{{ e }}"></label>
   <label>Air temp (°C)<input type="text" inputmode="decimal" name="o_air_temp_c{{ sfx }}" placeholder="{{ e }}"></label>
   <label>Rating (1-5)<input type="text" inputmode="numeric" name="o_rating{{ sfx }}" placeholder="{{ e }}"></label>
-  <label>Buddies
-    <select name="o_buddy{{ sfx }}" multiple size="3">
-      {% for bid, bname in state.buddies() %}<option value="{{ bid }}">{{ bname }}</option>{% else %}<option disabled>(none in SSI logbook)</option>{% endfor %}
-    </select></label>
+  <div class="group">Buddies
+    <div class="checks">
+      {% for bid, bname in state.buddies() %}<label><input type="checkbox" name="o_buddy{{ sfx }}" value="{{ bid }}">{{ bname }}</label>{% else %}<span class="muted">(none in SSI logbook)</span>{% endfor %}
+    </div>
+  </div>
   <label style="grid-column: 1 / -1">Notes (added to the computer's memo)<input type="text" name="o_notes{{ sfx }}" placeholder="{{ e }}"></label>
 {% endmacro %}
+
 {% block content %}
-<style>
-  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px 12px; }
-  .grid label { display:flex; flex-direction:column; gap:3px; font-size:13px; color: var(--muted); }
-</style>
 {% if not state.ssi_configured %}
 <div class="card">
   <h2>SSI login</h2>
@@ -50,28 +69,41 @@
   <p class="muted">{{ batch.files|join(' · ') }}</p>
   {% for e in batch.errors %}<div class="alert">{{ e }}</div>{% endfor %}
 
+  <div class="row" style="margin-bottom:8px">
+    <button type="button" id="locate">📍 use my location</button>
+    <span id="locinfo" class="muted">distances and nearby sites appear once the position is known</span>
+  </div>
+
   <form method="post" action="{{ root }}/batch/{{ batch.id }}/ssi" id="pushform">
   <table>
     <tr><th><input type="checkbox" id="all" checked></th><th>Date</th><th>Duration</th><th>Max</th><th class="hide-sm">Temp</th><th>Site (SSI)</th><th>Status</th></tr>
     {% for d in batch.dives %}
     {% set i = loop.index0 %}
     {% set ex = batch.existing.get(i) %}
+    {% set sug = batch.site_suggestions.get(i) %}
     <tr>
       <td><input type="checkbox" name="selected" value="{{ i }}" {% if not ex %}checked{% endif %}></td>
-      <td>{{ d.start.strftime('%Y-%m-%d %H:%M') }}<br><span class="muted">#{{ d.number or '?' }} · {{ d.computer.display_name if d.computer else '' }}</span></td>
+      <td>{{ d.start.strftime('%Y-%m-%d %H:%M') }} <button type="button" class="iconbtn info" data-i="{{ i }}" title="all data of this dive">ⓘ</button><br><span class="muted">#{{ d.number or '?' }} · {{ d.computer.display_name if d.computer else '' }}</span></td>
       <td>{{ d.duration_min }} min</td>
       <td>{{ '%.1f'|format(d.max_depth_m) }} m</td>
       <td class="hide-sm">{% if d.water_temp_min_c is not none %}{{ d.water_temp_min_c }} °C{% endif %}</td>
       <td>
-        {% set sug = batch.site_suggestions.get(i) %}
         <input type="text" class="sitesearch" data-i="{{ i }}" placeholder="search SSI site…" value="{{ d.site.name if d.site and d.site.name else '' }}" autocomplete="off">
-        <select name="site_id_{{ i }}" id="site_{{ i }}">
+        <select name="site_id_{{ i }}" id="site_{{ i }}" class="siteselect" data-i="{{ i }}">
           <option value="">— no site —</option>
-          {% if sug %}<option value="{{ sug.id }}" selected>{{ sug.label }}</option>{% endif %}
+          {% if sug %}<option value="{{ sug.id }}" selected data-bow="{{ sug.bow or '' }}" data-lat="{{ sug.lat or '' }}" data-lon="{{ sug.lon or '' }}" data-name="{{ sug.name }}">{{ sug.label }}</option>{% endif %}
         </select>
+        <div class="sitemeta" id="meta_{{ i }}"></div>
+        <button type="button" class="iconbtn mapbtn" data-i="{{ i }}">🗺 map</button>
       </td>
       <td>{% if ex %}<span class="warn">already in SSI (#{{ ex.odin_user_log_nr }})</span>{% elif state.ssi_configured %}<span class="ok">new</span>{% else %}<span class="muted">SSI not logged in</span>{% endif %}</td>
     </tr>
+    <tr class="factsrow" id="facts_{{ i }}" hidden><td></td><td colspan="6">
+      <table class="facts">
+        {% for k, v in dive_facts(d) %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}
+        <tr><td>SSI water type</td><td id="water_{{ i }}" class="muted">—</td></tr>
+      </table>
+    </td></tr>
     <tr class="perdive" hidden><td></td><td colspan="6">
       <details><summary class="muted">details for this dive (overrides the defaults below)</summary>
       <div class="grid">{{ fields("_" ~ i, true) }}</div>
@@ -95,31 +127,115 @@
   </form>
 </div>
 
+<div id="mapmodal">
+  <div class="box">
+    <div class="bar"><b id="maptitle">Pick the dive site</b><span class="muted">tap a marker to select it</span><button type="button" id="mapclose" style="margin-left:auto">close</button></div>
+    <div id="map"></div>
+  </div>
+</div>
+
 <script>
 const root = "{{ root }}";
+let pos = null;            // {lat, lon} once known
 const same = document.getElementById('same_for_all');
 const togglePerDive = () => document.querySelectorAll('tr.perdive').forEach(r => r.hidden = same.checked);
 same.addEventListener('change', togglePerDive); togglePerDive();
 document.getElementById('all').addEventListener('change', e => {
   document.querySelectorAll('input[name=selected]').forEach(c => c.checked = e.target.checked);
 });
+document.querySelectorAll('.info').forEach(b => b.addEventListener('click', () => {
+  const r = document.getElementById('facts_' + b.dataset.i); r.hidden = !r.hidden;
+}));
+
+const km = (a, b) => { // haversine, km
+  const R = 6371, toR = x => x * Math.PI / 180;
+  const dLat = toR(b.lat - a.lat), dLon = toR(b.lon - a.lon);
+  const h = Math.sin(dLat/2)**2 + Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+};
+const bowText = b => b === 'salt' ? 'salt water' : b === 'fresh' ? 'fresh water' : b ? b : 'unknown water type';
+
+function updateMeta(i) {
+  const sel = document.getElementById('site_' + i), o = sel.selectedOptions[0];
+  const meta = document.getElementById('meta_' + i), water = document.getElementById('water_' + i);
+  if (!o || !o.value) { meta.textContent = ''; water.textContent = '— (no site: sent as null unless chosen below)'; return; }
+  const parts = [bowText(o.dataset.bow) + ' (from site)'];
+  const lat = parseFloat(o.dataset.lat), lon = parseFloat(o.dataset.lon);
+  if (!isNaN(lat) && !isNaN(lon)) {
+    if (pos) parts.push(km(pos, {lat, lon}).toFixed(1) + ' km away');
+    parts.push(`<a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=14/${lat}/${lon}" target="_blank" rel="noopener">OpenStreetMap ↗</a>`);
+  } else parts.push('no coordinates');
+  meta.innerHTML = parts.join(' · ');
+  water.textContent = bowText(o.dataset.bow) + ' (derived from the selected site; "auto" below uses it)';
+}
+
+function renderOptions(i, hits) {
+  const sel = document.getElementById('site_' + i);
+  const keep = sel.value;
+  sel.innerHTML = '<option value="">— no site —</option>' + hits.map(h =>
+    `<option value="${h.id}" data-bow="${h.bow || ''}" data-lat="${h.lat ?? ''}" data-lon="${h.lon ?? ''}" data-name="${h.name.replace(/"/g, '&quot;')}">${h.label}${h.distance_km != null ? ' · ' + h.distance_km + ' km' : ''}</option>`).join('');
+  if (hits.length) sel.value = hits.some(h => String(h.id) === keep) ? keep : String(hits[0].id);
+  updateMeta(i);
+}
+
+async function query(i, q) {
+  const params = new URLSearchParams({q});
+  if (pos) { params.set('lat', pos.lat); params.set('lon', pos.lon); }
+  try {
+    const r = await fetch(root + '/api/sites?' + params.toString());
+    const hits = await r.json();
+    if (Array.isArray(hits)) renderOptions(i, hits);
+  } catch (e) { console.error(e); }
+}
+
 let timer = null;
 document.querySelectorAll('.sitesearch').forEach(inp => {
   inp.addEventListener('input', () => {
     clearTimeout(timer);
-    timer = setTimeout(async () => {
-      const q = inp.value.trim();
-      if (q.length < 2) return;
-      const sel = document.getElementById('site_' + inp.dataset.i);
-      try {
-        const r = await fetch(root + '/api/sites?q=' + encodeURIComponent(q));
-        const hits = await r.json();
-        sel.innerHTML = '<option value="">— no site —</option>' +
-          (Array.isArray(hits) ? hits.map(h => `<option value="${h.id}">${h.label}</option>`).join('') : '');
-        if (Array.isArray(hits) && hits.length) sel.selectedIndex = 1;
-      } catch (e) { console.error(e); }
-    }, 300);
+    timer = setTimeout(() => { const q = inp.value.trim(); if (q.length >= 2 || (pos && !q)) query(inp.dataset.i, q); }, 300);
   });
 });
+document.querySelectorAll('.siteselect').forEach(sel => sel.addEventListener('change', () => updateMeta(sel.dataset.i)));
+document.querySelectorAll('.siteselect').forEach(sel => updateMeta(sel.dataset.i));
+
+document.getElementById('locate').addEventListener('click', () => {
+  const info = document.getElementById('locinfo');
+  if (!navigator.geolocation) { info.textContent = 'geolocation not available in this browser'; return; }
+  info.textContent = 'locating…';
+  navigator.geolocation.getCurrentPosition(p => {
+    pos = {lat: p.coords.latitude, lon: p.coords.longitude};
+    info.textContent = `position ${pos.lat.toFixed(4)}, ${pos.lon.toFixed(4)} – lists re-sorted by distance`;
+    document.querySelectorAll('.sitesearch').forEach(inp => query(inp.dataset.i, inp.value.trim()));
+  }, err => { info.textContent = 'could not get position: ' + err.message; }, {enableHighAccuracy: true, timeout: 15000});
+});
+
+// ---- map overlay (Leaflet + OpenStreetMap)
+let map = null, layer = null, mapFor = null;
+const modal = document.getElementById('mapmodal');
+document.getElementById('mapclose').addEventListener('click', () => modal.style.display = 'none');
+document.querySelectorAll('.mapbtn').forEach(b => b.addEventListener('click', () => openMap(b.dataset.i)));
+function openMap(i) {
+  if (typeof L === 'undefined') { alert('map library not loaded (no internet?)'); return; }
+  mapFor = i;
+  modal.style.display = 'flex';
+  if (!map) {
+    map = L.map('map');
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 18, attribution: '&copy; OpenStreetMap contributors'}).addTo(map);
+    layer = L.layerGroup().addTo(map);
+  }
+  layer.clearLayers();
+  const sel = document.getElementById('site_' + i);
+  const pts = [];
+  [...sel.options].forEach(o => {
+    const lat = parseFloat(o.dataset.lat), lon = parseFloat(o.dataset.lon);
+    if (!o.value || isNaN(lat) || isNaN(lon)) return;
+    const m = L.marker([lat, lon], {opacity: o.selected ? 1 : 0.7}).addTo(layer).bindTooltip(o.dataset.name);
+    m.on('click', () => { sel.value = o.value; updateMeta(i); modal.style.display = 'none'; });
+    pts.push([lat, lon]);
+  });
+  if (pos) { L.circleMarker([pos.lat, pos.lon], {radius: 7, color: '#d33'}).addTo(layer).bindTooltip('you'); pts.push([pos.lat, pos.lon]); }
+  document.getElementById('maptitle').textContent = pts.length ? `Pick the dive site (${sel.options.length - 1} candidates)` : 'No coordinates for these sites';
+  setTimeout(() => { map.invalidateSize(); if (pts.length) map.fitBounds(pts, {padding: [30, 30], maxZoom: 13}); else map.setView([20, 0], 2); }, 50);
+}
 </script>
 {% endblock %}

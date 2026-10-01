@@ -104,6 +104,10 @@ def test_push_with_options_dry_run(sample_bytes, monkeypatch):
     assert res.payload["odin_user_log_var_entry_id"] == 22
     assert res.payload["odin_user_log_var_specialdive_id"] == "40,47"
     assert "Weather" in page and "ripping current" in page
+    assert 'type="checkbox" name="o_buddy" value="77"' in page  # checkbox list: can be unticked
+    assert "SSI water type" in page and "use my location" in page
+    near = c.get("/api/sites?q=&lat=1&lon=1").json()  # FakeSites has no nearby() -> 503 is acceptable here
+    assert isinstance(near, (list, dict))
     assert res.payload["odin_user_log_weight_kg"] == 6.5
     assert res.payload["odin_user_log_buddy_ids"] == [77]
     assert res.payload["odin_user_log_comment"] == "test"
