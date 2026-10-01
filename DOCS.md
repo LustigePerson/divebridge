@@ -9,6 +9,7 @@ or push them to your SSI / MySSI logbook.
 |---|---|
 | `ssi_email` / `ssi_password` | MySSI login. Optional – you can also log in inside the UI (kept in memory only). |
 | `output_dir` | Where UDDF files are written in addition to the browser download. Default `/share/divebridge/uddf`. |
+| `inbox_dir` | Folder import: every file in it is read when you press *Import folder*. Default `/share/divebridge/inbox`. Only folders below `/share`, `/media` or the inbox are allowed. |
 | `log_level` | `debug`, `info`, `warning`, `error` |
 
 ## Usage
@@ -19,6 +20,12 @@ or push them to your SSI / MySSI logbook.
    the dive already exists in your SSI logbook.
 4. *Download UDDF* or *Upload to SSI*. Keep *dry run* ticked the first time: it shows the payload
    without sending anything.
+
+## Several files from the phone
+
+The Home Assistant companion app hands over only one file per upload (its WebView ignores
+multi-selection results). Either use the phone's browser for the ingress page, or put the exports
+into the inbox folder (Samba, a sync app, …) and press *Import folder*.
 
 ## After uploading
 

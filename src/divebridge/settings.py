@@ -11,18 +11,33 @@ from pathlib import Path
 class Settings:
     data_dir: Path
     output_dir: Path  # where UDDF files are written (HA: /share/divebridge)
+    inbox_dir: Path  # folder import: all exports in this folder (HA: /share/divebridge/inbox)
     ssi_email: str | None
     ssi_password: str | None
     ingress_only: bool  # accept only requests from the HA ingress proxy
     port: int
 
+    def allowed_import_roots(self) -> list[Path]:
+        """Folders the web UI may import from (the inbox plus HA's shared folders)."""
+        roots = [self.inbox_dir, Path("/share"), Path("/media")]
+        return [r.resolve() for r in roots]
+
+    def is_allowed_import_dir(self, folder: Path) -> bool:
+        try:
+            f = folder.resolve()
+        except OSError:
+            return False
+        return any(f == r or f.is_relative_to(r) for r in self.allowed_import_roots())
+
     @classmethod
     def from_env(cls) -> "Settings":
         data_dir = Path(os.environ.get("DIVEBRIDGE_DATA_DIR", ".data")).expanduser()
         output_dir = Path(os.environ.get("DIVEBRIDGE_OUTPUT_DIR", str(data_dir / "uddf"))).expanduser()
+        inbox_dir = Path(os.environ.get("DIVEBRIDGE_INBOX_DIR", str(data_dir / "inbox"))).expanduser()
         return cls(
             data_dir=data_dir,
             output_dir=output_dir,
+            inbox_dir=inbox_dir,
             ssi_email=os.environ.get("SSI_EMAIL") or None,
             ssi_password=os.environ.get("SSI_PASSWORD") or None,
             ingress_only=os.environ.get("DIVEBRIDGE_INGRESS_ONLY", "0") in ("1", "true", "yes"),

@@ -21,8 +21,11 @@ def _load(paths: list[str]) -> list[Dive]:
     from .importers.registry import expand_archive, is_zip_archive
 
     dives: list[Dive] = []
+    files: list[Path] = []
     for p in paths:
         path = Path(p)
+        files.extend(sorted(f for f in path.iterdir() if f.is_file() and not f.name.startswith(".")) if path.is_dir() else [path])
+    for path in files:
         data = path.read_bytes()
         entries = expand_archive(path.name, data) if is_zip_archive(path.name, data) else [(path.name, data)]
         for name, blob in entries:

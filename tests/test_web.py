@@ -132,3 +132,24 @@ def test_zip_upload(tmp_path):
     assert r.status_code == 200
     assert "Review 3 dive(s)" in r.text
     assert "readme.txt: unknown format" in r.text
+
+
+def test_import_folder(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    from divebridge.web import app as webapp
+
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    src = Path(__file__).parent / "data" / "cressi"
+    for f in src.glob("SKIFF_*.xlsx"):
+        (inbox / f.name).write_bytes(f.read_bytes())
+    (inbox / "notes.txt").write_text("x")
+    monkeypatch.setattr(webapp.settings, "inbox_dir", inbox)
+    c = TestClient(app)
+    r = c.post("/import-folder", data={"folder": ""}, follow_redirects=True)
+    assert "Review 3 dive(s)" in r.text and "notes.txt: unknown format" in r.text
+    r = c.post("/import-folder", data={"folder": "/etc"}, follow_redirects=True)
+    assert "not allowed" in r.text and "Review 0 dive(s)" in r.text
+    r = c.post("/import-folder", data={"folder": str(inbox / "missing")}, follow_redirects=True)
+    assert "does not exist" in r.text

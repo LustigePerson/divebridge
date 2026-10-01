@@ -18,6 +18,8 @@ SSI_PASSWORD="$(opt ssi_password '')"
 [ -n "$SSI_EMAIL" ] && export SSI_EMAIL
 [ -n "$SSI_PASSWORD" ] && export SSI_PASSWORD
 export DIVEBRIDGE_OUTPUT_DIR="$(opt output_dir /share/divebridge/uddf)"
+export DIVEBRIDGE_INBOX_DIR="$(opt inbox_dir /share/divebridge/inbox)"
+mkdir -p "$DIVEBRIDGE_INBOX_DIR" "$DIVEBRIDGE_OUTPUT_DIR" 2>/dev/null || true
 export DIVEBRIDGE_DATA_DIR="${DIVEBRIDGE_DATA_DIR:-/data/divebridge}"
 export DIVEBRIDGE_INGRESS_ONLY="${DIVEBRIDGE_INGRESS_ONLY:-1}"
 LOG_LEVEL="$(opt log_level info)"

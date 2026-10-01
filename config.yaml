@@ -1,5 +1,5 @@
 name: divebridge
-version: "0.1.2"
+version: "0.1.3"
 slug: divebridge
 description: Import dive computer exports (Cressi DiveSync) into the SSI logbook and export UDDF
 url: https://github.com/LustigePerson/divebridge
@@ -19,9 +19,11 @@ options:
   ssi_email: ""
   ssi_password: ""
   output_dir: /share/divebridge/uddf
+  inbox_dir: /share/divebridge/inbox
   log_level: info
 schema:
   ssi_email: email?
   ssi_password: password?
   output_dir: str?
+  inbox_dir: str?
   log_level: list(debug|info|warning|error)?

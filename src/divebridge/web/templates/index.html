@@ -6,7 +6,14 @@
     <input type="file" name="files" multiple required>
     <button class="primary" type="submit">Upload &amp; review</button>
   </form>
-  <p class="muted">Supported: Cressi DiveSync Excel exports, several at once, or one ZIP containing them (on a phone: select the files in the file manager → compress → upload the ZIP).</p>
+  <p class="muted">Supported: Cressi DiveSync Excel exports, several at once, or a ZIP containing them.
+  Note: the Home Assistant companion app only passes <b>one</b> file per upload (app limitation); use the folder import or a browser for several files.</p>
+  <h2 style="margin-top:14px">…or import every file in a folder</h2>
+  <form method="post" action="{{ root }}/import-folder" class="row">
+    <input type="text" name="folder" value="{{ state.settings.inbox_dir }}" style="max-width:360px">
+    <button type="submit">Import folder</button>
+  </form>
+  <p class="muted">Put the exports there (Samba share, sync app, …); all files in the folder are read, duplicates are detected against SSI.</p>
 </div>
 
 <div class="card">

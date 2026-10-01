@@ -215,24 +215,18 @@ def logout(request: Request):
     return RedirectResponse(url=f"{_root(request)}/", status_code=303)
 
 
-@app.post("/upload")
-async def upload(request: Request, files: list[UploadFile] = File(...)):
-    bid = secrets.token_hex(4)
-    batch = Batch(id=bid, created=datetime.now(), files=[], dives=[])
-    upload_dir = settings.data_dir / "uploads" / bid
-    incoming: list[tuple[str, bytes]] = []
-    for f in files:
-        data = await f.read()
-        name = Path(f.filename or "upload").name
-        if not data:
-            continue
+def _ingest(batch: Batch, incoming: list[tuple[str, bytes]]) -> None:
+    """Parse uploaded/collected files into the batch; ZIPs are expanded, unknown files reported."""
+    upload_dir = settings.data_dir / "uploads" / batch.id
+    expanded: list[tuple[str, bytes]] = []
+    for name, data in incoming:
         if is_zip_archive(name, data):
             inner = expand_archive(name, data)
-            incoming.extend(inner)
+            expanded.extend(inner)
             batch.files.append(f"{name} (zip, {len(inner)} files)")
         else:
-            incoming.append((name, data))
-    for name, data in incoming:
+            expanded.append((name, data))
+    for name, data in expanded:
         upload_dir.mkdir(parents=True, exist_ok=True)
         (upload_dir / name).write_bytes(data)
         imp = detect(name, data)
@@ -247,9 +241,46 @@ async def upload(request: Request, files: list[UploadFile] = File(...)):
         batch.files.append(f"{name} ({imp.name}, {len(dives)} dives)")
         batch.dives.extend(dives)
     batch.dives.sort(key=lambda d: d.start)
-    state.batches[bid] = batch
+
+
+def _new_batch() -> Batch:
+    return Batch(id=secrets.token_hex(4), created=datetime.now(), files=[], dives=[])
+
+
+@app.post("/upload")
+async def upload(request: Request, files: list[UploadFile] = File(...)):
+    batch = _new_batch()
+    incoming: list[tuple[str, bytes]] = []
+    for f in files:
+        data = await f.read()
+        name = Path(f.filename or "upload").name
+        if data:
+            incoming.append((name, data))
+    _ingest(batch, incoming)
+    state.batches[batch.id] = batch
     _enrich(batch)
-    return RedirectResponse(url=f"{_root(request)}/batch/{bid}", status_code=303)
+    return RedirectResponse(url=f"{_root(request)}/batch/{batch.id}", status_code=303)
+
+
+@app.post("/import-folder")
+def import_folder(request: Request, folder: str = Form("")):
+    """Take every file from a folder on the host (e.g. /share/divebridge/inbox) – no file picker needed."""
+    path = Path(folder.strip() or settings.inbox_dir)
+    batch = _new_batch()
+    if not settings.is_allowed_import_dir(path):
+        batch.errors.append(f"{path}: not allowed – use a folder below {', '.join(str(r) for r in settings.allowed_import_roots())}")
+    elif not path.is_dir():
+        batch.errors.append(f"{path}: folder does not exist")
+    else:
+        incoming = [(f.name, f.read_bytes()) for f in sorted(path.iterdir())
+                    if f.is_file() and not f.name.startswith(".")]
+        if not incoming:
+            batch.errors.append(f"{path}: no files found")
+        _ingest(batch, incoming)
+        batch.files.insert(0, f"folder {path}")
+    state.batches[batch.id] = batch
+    _enrich(batch)
+    return RedirectResponse(url=f"{_root(request)}/batch/{batch.id}", status_code=303)
 
 
 def _enrich(batch: Batch) -> None:
