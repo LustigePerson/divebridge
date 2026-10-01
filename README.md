@@ -120,11 +120,26 @@ Known facts and quirks:
 - Variable lists (weather, entry, body of water, special dive, …) come from `what=get_divelog_vars`;
   a copy is bundled for offline use. Multi-value "special dive" is sent as `"40,47"`.
 
-## Roadmap
+## Status / TODO
 
-- v2: push directly to divelogs.de (official REST API, `POST /api/dives`)
-- more importers (UDDF/Subsurface as input, other apps)
-- optional: contribute the DiveSync parser upstream to divessi-log-importer
+Done and verified against a real MySSI logbook (2026-10-01): DiveSync XLSX import, UDDF export,
+SSI upload with profile, all optional fields, duplicate detection, read-back verification,
+dive site search with distance / map, web UI, CLI, add-on packaging (Docker build + run script).
+
+Open:
+
+- [ ] Install as add-on on a real Home Assistant and run the whole flow from the companion app
+      (ingress, HTTPS geolocation, `/share` output).
+- [ ] First export from a real Cressi Da Vinci: date format with non-US settings, memo, nitrox,
+      several dives in one file, device name (currently `SKIFF` is mapped to "Da Vinci").
+- [ ] Verify dive site mapping with real dives; use GPS from the export (`GPSStartDive`) for the
+      nearest-site lookup once a real export shows the coordinate format.
+- [ ] SSI gear / equipment (`odin_user_log_gear`): needs the equipment list from the SSI profile
+      (API call still to be found) and a multi-select in the UI.
+- [ ] Dive center field (`log_linked_facility_id`, centers come from `APP_CACHE_CENTER.zip`).
+- [ ] v2: push directly to divelogs.de (official REST API, `POST /api/dives`).
+- [ ] More importers (UDDF/Subsurface as input, other apps).
+- [ ] Optional: contribute the DiveSync parser upstream to divessi-log-importer.
 
 ## Credits
 
