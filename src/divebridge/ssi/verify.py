@@ -66,6 +66,9 @@ def compare(payload: dict[str, Any], stored: dict[str, Any]) -> list[FieldDiff]:
     out: list[FieldDiff] = []
     for label, pk, lk in FIELDS:
         sent, got = payload.get(pk), stored.get(lk)
+        if pk == "odin_user_log_datetime" and isinstance(sent, str) and isinstance(got, str):
+            # sent "2025-10-15+02:56:07.000", stored "2025-10-15 02:56" – SSI keeps minute precision
+            sent, got = sent.replace("+", " ")[:16], got[:16]
         a, b = _norm(sent), _norm(got)
         ok = a == b or (isinstance(a, float) and isinstance(b, float) and abs(a - b) < 0.06)
         if a is None and b in (0.0, [], ""):  # SSI stores "unset" as 0 / empty
