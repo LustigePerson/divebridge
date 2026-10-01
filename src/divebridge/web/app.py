@@ -199,7 +199,7 @@ async def ingress_guard(request: Request, call_next):
     response.headers["Cache-Control"] = "no-store"
     # one line per request so the add-on log shows what the browser/app actually sends
     log.info("%s %s -> %s (ua: %s)", request.method, request.url.path, response.status_code,
-             request.headers.get("user-agent", "-")[:120])
+             request.headers.get("user-agent", "-"))
     return response
 
 
@@ -228,10 +228,12 @@ def health() -> dict[str, str]:
 
 
 def is_companion_app(request: Request) -> bool:
-    """The HA Android app's WebView drops multi-file selections (ClipData is ignored); its UA
-    contains 'Home Assistant/<version>'. With a single-file input the picker returns intent.data,
-    which the app handles – so we offer one file (or a ZIP) there instead of a broken multi-select."""
-    return "Home Assistant/" in request.headers.get("user-agent", "")
+    """Android WebViews (the HA companion app among them) drop multi-file selections because
+    FileChooserParams.parseResult ignores ClipData. A single-file input works, so we serve that.
+    Detection: the app's own UA suffix 'Home Assistant/<version>' or the standard Android WebView
+    marker '; wv)' – Chrome for Android never carries the latter."""
+    ua = request.headers.get("user-agent", "")
+    return "Home Assistant/" in ua or "; wv)" in ua
 
 
 @app.get("/", response_class=HTMLResponse)

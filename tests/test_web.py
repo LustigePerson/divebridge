@@ -141,8 +141,10 @@ def test_companion_app_gets_single_file_input():
     assert 'name="files"  required' in page or 'name="files" required' in page
     assert "multiple" not in page.split('name="files"')[1].split(">")[0]
     assert "ZIP" in page
-    page = c.get("/", headers={"User-Agent": "Mozilla/5.0 Chrome/150"}).text
-    assert 'name="files" multiple required' in page
+    page = c.get("/", headers={"User-Agent": "Mozilla/5.0 (Linux; Android 16; SM-S931B) AppleWebKit/537.36 Chrome/140.0 Mobile Safari/537.36"}).text
+    assert 'name="files" multiple required' in page  # Chrome for Android: multi-select works
+    page = c.get("/", headers={"User-Agent": "Mozilla/5.0 (Linux; Android 16; SM-S931B Build/BP4A; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/140.0 Mobile Safari/537.36"}).text
+    assert "multiple" not in page.split('name="files"')[1].split(">")[0]  # any Android WebView
 
 
 def test_diag_page_and_echo(sample_bytes):
