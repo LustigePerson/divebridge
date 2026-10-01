@@ -25,11 +25,12 @@ FLAG_SURFACED = 0x04000000
 # SSI "variable" ids. Only the ones observed in the reference projects are known; entries with
 # id None are shown in the UI as "not yet known". Use `divebridge ssi-vars` on a logbook that
 # contains dives edited in the MySSI app to discover more ids, then fill them in here.
-# Verified 2026-10-01 against a real upload: watertype 4 is shown as *fresh* water in MySSI
-# (the reference project assumed salt). Unknown ids are sent as null rather than guessed.
+# Ids verified 2026-10-01 against a real MySSI logbook (watertype 4 = fresh, 5 = salt; the
+# reference project assumed 4 = salt). Unknown ids are sent as null rather than guessed.
+# Also observed but meaning not yet mapped: entry ids 21/22, water_body id 13.
 VARS: dict[str, dict[str, int | None]] = {
     "divetype": {"fun": 24, "education": None},
-    "watertype": {"salt": None, "fresh": 4},
+    "watertype": {"auto": None, "salt": 5, "fresh": 4},  # auto = from the SSI dive site ("bow")
     "tanktype": {"steel": 19, "alu": 20},
 }
 FRD_DIVETYPE_DEFAULT = 50
@@ -40,7 +41,7 @@ class DiveOptions:
     """Manual additions that the dive computer export cannot provide."""
 
     divetype: str = "fun"
-    watertype: str = "salt"
+    watertype: str = "auto"
     tanktype: str = "steel"
     tank_volume_l: float | None = None
     start_bar: float | None = None
@@ -54,6 +55,11 @@ class DiveOptions:
 
     def var(self, group: str) -> int | None:
         return VARS[group].get(getattr(self, group))
+
+    def resolve_watertype(self, site_bow: str | None) -> None:
+        """'auto' -> salt/fresh from the dive site's body of water, if known."""
+        if self.watertype == "auto" and site_bow in ("salt", "fresh"):
+            self.watertype = site_bow
 
     def merged(self, override: "DiveOptions | None") -> "DiveOptions":
         """Per-dive override wins where it is set; otherwise the batch default applies."""

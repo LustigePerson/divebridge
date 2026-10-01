@@ -34,7 +34,7 @@ def test_payload_values(sample_dives):
     assert p["odin_user_log_divecomputer_dive_ref"] == "2025-10-15T02:56:07"
     assert p["odin_user_log_tankPressureDataset"] is None
     assert p["odin_user_log_si_before"] == 445  # seconds
-    assert p["odin_user_log_var_watertype_id"] is None  # salt id not known yet -> null, never a wrong id
+    assert p["odin_user_log_var_watertype_id"] is None  # "auto" without a site -> null, never a wrong id
     assert p["odin_user_log_var_divetype_id"] == 24 and p["odin_user_log_var_tanktype_id"] == 19
     depths = json.loads(p["odin_user_log_depthDataset"])
     samples = json.loads(p["odin_user_log_diveSamples"])
@@ -69,3 +69,14 @@ def test_options_merge_and_payload(sample_dives):
     assert p["odin_user_log_gf_set"] == "89 / 89" and p["odin_user_log_gf_set_1"] == 89
     assert p["odin_user_log_deco_dive"] is None
     assert set(p) == REF_KEYS
+
+
+def test_watertype_auto_from_site(sample_dives):
+    from divebridge.ssi.payload import DiveOptions
+
+    o = DiveOptions()
+    o.resolve_watertype("salt")
+    assert build_payload(sample_dives[0], 1, 5, options=o)["odin_user_log_var_watertype_id"] == 5
+    o = DiveOptions(watertype="fresh")
+    o.resolve_watertype("salt")  # explicit choice wins
+    assert build_payload(sample_dives[0], 1, 5, options=o)["odin_user_log_var_watertype_id"] == 4

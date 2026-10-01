@@ -27,6 +27,7 @@ class SiteMatch:
     lat: float | None
     lon: float | None
     score: float = 0.0
+    bow: str | None = None  # body of water: "salt" | "fresh" | "artificial"
 
     @property
     def label(self) -> str:
@@ -82,6 +83,7 @@ class SiteIndex:
             lat=s.get("odin_dive_sites_lat") or None,
             lon=s.get("odin_dive_sites_lon") or None,
             score=score,
+            bow=s.get("bow") or None,
         )
 
     def __len__(self) -> int:

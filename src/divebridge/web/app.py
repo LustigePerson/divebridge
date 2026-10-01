@@ -295,7 +295,8 @@ async def batch_ssi(request: Request, bid: str):
     try:
         results = push_dives(state.client(), dives, local_sites, dry_run=dry_run,
                              skip_duplicates=form.get("allow_duplicates") != "1",
-                             options=defaults, per_dive_options=per_dive)
+                             options=defaults, per_dive_options=per_dive,
+                             site_bow=lambda sid: (m.bow if (m := state.sites().get(sid)) else None))
         state.last_error = None
     except (APIError, Exception) as e:  # noqa: BLE001
         log.exception("push failed")

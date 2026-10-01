@@ -15,6 +15,9 @@ from typing import Any
 import httpx
 
 log = logging.getLogger(__name__)
+# httpx logs full URLs at INFO level; the SSI API carries password and token in the query string.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 BASE_URL = "https://api.divessi.com"
 RPC_ENDPOINT = "/app/a21.php"

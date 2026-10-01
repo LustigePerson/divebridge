@@ -27,7 +27,19 @@ def _load(paths: list[str]) -> list[Dive]:
 
 
 def _client(settings: Settings) -> SsiClient:
-    return SsiClient(settings.ssi_email, settings.ssi_password, data_dir=settings.data_dir)
+    """SSI client from SSI_EMAIL / SSI_PASSWORD; missing values are asked interactively (no shell quoting issues)."""
+    email, password = settings.ssi_email, settings.ssi_password
+    if sys.stdin.isatty():
+        if not email:
+            email = input("SSI e-mail: ").strip()
+        if not password:
+            import getpass
+
+            password = getpass.getpass("SSI password: ")
+    client = SsiClient(email, password, data_dir=settings.data_dir)
+    if not client.has_token and (not email or not password):
+        raise APIError("SSI e-mail/password not configured (set SSI_EMAIL/SSI_PASSWORD or run interactively)")
+    return client
 
 
 def cmd_formats(_: argparse.Namespace, __: Settings) -> int:
@@ -39,7 +51,7 @@ def cmd_formats(_: argparse.Namespace, __: Settings) -> int:
 def cmd_inspect(args: argparse.Namespace, _: Settings) -> int:
     for d in _load(args.files):
         print(d.summary())
-        if args.verbose:
+        if args.details:
             print(f"   avg {d.avg_depth_m} m, temp {d.water_temp_min_c}–{d.water_temp_max_c} °C, "
                   f"gas {d.primary_gas.name}, computer {d.computer.display_name if d.computer else '-'} "
                   f"({d.computer.serial if d.computer else '-'}), SI {d.surface_interval_s}s, "
@@ -110,7 +122,7 @@ def cmd_ssi_verify(args: argparse.Namespace, settings: Settings) -> int:
                                 site_id=stored.get("odin_user_log_dive_sites_id"))
         diffs = compare(payload, stored)
         print(f"#{stored.get('odin_user_log_nr'):<4} {d.summary()}  -> {summarize(diffs)}")
-        _print_diffs(diffs, args.verbose)
+        _print_diffs(diffs, args.all_fields)
     return rc
 
 
@@ -171,7 +183,9 @@ def cmd_ssi_push(args: argparse.Namespace, settings: Settings) -> int:
                 hits = idx.search(d.site.name, limit=1)
                 site_ids[i] = hits[0].id if hits else None
                 print(f"site for {d.site.name!r}: {hits[0].label if hits else 'not found'}")
-    results = push_dives(client, dives, site_ids, dry_run=not args.send, skip_duplicates=not args.allow_duplicates)
+    idx = SiteIndex(settings.data_dir, client) if settings.ssi_email or client.has_token else None
+    results = push_dives(client, dives, site_ids, dry_run=not args.send, skip_duplicates=not args.allow_duplicates,
+                         site_bow=(lambda sid: (m.bow if (m := idx.get(sid)) else None)) if idx else None)
     for r in results:
         print(f"{r.status:18s} {r.dive.summary()}  -> {r.message}")
         if args.dump_payload and r.payload:
@@ -205,7 +219,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("inspect", help="parse files and print the dives")
     s.add_argument("files", nargs="+")
-    s.add_argument("-v", "--verbose", action="store_true", dest="verbose")
+    s.add_argument("-v", "--details", action="store_true", dest="details")
     s.set_defaults(fn=cmd_inspect)
 
     s = sub.add_parser("export-uddf", help="write UDDF files")
@@ -223,7 +237,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("ssi-verify", help="compare export files with the dives stored in the SSI logbook")
     s.add_argument("files", nargs="+")
-    s.add_argument("-v", "--verbose", action="store_true", dest="verbose", help="show all fields, not only differences")
+    s.add_argument("-v", "--all-fields", action="store_true", dest="all_fields", help="show all fields, not only differences")
     s.set_defaults(fn=cmd_ssi_verify)
 
     s = sub.add_parser("ssi-vars", help="show SSI variable ids (water/dive/tank type …) used in your logbook")
@@ -256,6 +270,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    # httpx/httpcore log full request URLs – with the SSI API that includes password and token. Never.
+    for name in ("httpx", "httpcore"):
+        logging.getLogger(name).setLevel(logging.WARNING)
     settings = Settings.from_env()
     try:
         sys.exit(args.fn(args, settings))

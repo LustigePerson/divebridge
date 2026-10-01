@@ -87,11 +87,13 @@ def test_push_with_options_dry_run(sample_bytes, monkeypatch):
     assert "Max Muster" in page and 'name="same_for_all"' in page
     r = c.post(f"/batch/{bid}/ssi", data={"selected": "0", "dry_run": "1", "same_for_all": "1",
                                           "o_watertype": "salt", "o_tanktype": "alu", "o_weight_kg": "6,5",
+                                          "site_id_0": "441938",
                                           "o_buddy": "77", "o_notes": "test"})
     assert r.status_code == 200 and "dry-run" in r.text
     res = webapp.state.batches[bid].results[0]
     assert res.log_nr == 4
     assert res.payload["odin_user_log_var_tanktype_id"] == 20
+    assert res.payload["odin_user_log_var_watertype_id"] == 5 and res.site_id == 441938
     assert res.payload["odin_user_log_weight_kg"] == 6.5
     assert res.payload["odin_user_log_buddy_ids"] == [77]
     assert res.payload["odin_user_log_comment"] == "test"

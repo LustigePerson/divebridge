@@ -9,7 +9,7 @@
   <label>Water
     <select name="o_watertype{{ sfx }}">
       {% if is_override %}<option value="">{{ e }}</option>{% endif %}
-      {% for k, v in vars.watertype.items() %}<option value="{{ k }}" {% if v is none %}disabled{% endif %}>{{ k }}{% if v is none %} (id unknown yet){% endif %}</option>{% endfor %}
+      {% for k, v in vars.watertype.items() %}<option value="{{ k }}">{{ 'auto (from dive site)' if k == 'auto' else k }}</option>{% endfor %}
     </select></label>
   <label>Tank
     <select name="o_tanktype{{ sfx }}">

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -33,7 +34,8 @@ def push_dives(client: SsiClient, dives: list[Dive], site_ids: dict[int, int | N
                dry_run: bool = True, skip_duplicates: bool = True,
                logbook: dict[str, Any] | None = None,
                options: DiveOptions | None = None,
-               per_dive_options: dict[int, DiveOptions] | None = None) -> list[PushResult]:
+               per_dive_options: dict[int, DiveOptions] | None = None,
+               site_bow: Callable[[int], str | None] | None = None) -> list[PushResult]:
     """Upload dives in chronological order, numbering them after the last logbook entry.
 
     site_ids / per_dive_options map index-in-`dives` -> value; `options` are the batch defaults.
@@ -61,8 +63,13 @@ def push_dives(client: SsiClient, dives: list[Dive], site_ids: dict[int, int | N
                                       site_id=site_id, existing=existing,
                                       message=f"already in logbook as #{existing.get('odin_user_log_nr')}"))
             continue
-        payload = build_payload(dive, log_nr=nr, site_id=site_id,
-                                options=defaults.merged((per_dive_options or {}).get(i)))
+        opts = defaults.merged((per_dive_options or {}).get(i))
+        if site_id is not None and site_bow is not None:
+            try:
+                opts.resolve_watertype(site_bow(site_id))
+            except Exception as e:  # noqa: BLE001
+                log.warning("water type lookup for site %s failed: %s", site_id, e)
+        payload = build_payload(dive, log_nr=nr, site_id=site_id, options=opts)
         if dry_run:
             results.append(PushResult(dive, "dry-run", log_nr=nr, site_id=site_id, payload=payload,
                                       message="not sent (dry run)"))
