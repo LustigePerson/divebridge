@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-SAMPLE = ROOT / "data" / "cressi" / "SKIFF_000002_10_15_2025_025607.xlsx"
+SAMPLE = Path(__file__).resolve().parent / "data" / "cressi" / "SKIFF_000002_10_15_2025_025607.xlsx"
 
 
 @pytest.fixture(scope="session")

@@ -38,13 +38,13 @@ UDDF files are additionally written to `/share/divebridge/uddf/` (configurable).
 
 ```bash
 uv sync                                   # creates .venv with all dependencies
-uv run pytest                             # unit tests (use the sample export in data/)
-uv run divebridge inspect data/cressi/*.xlsx
-uv run divebridge export-uddf -o out/ data/cressi/*.xlsx
+uv run pytest                             # unit tests (use the sample export in tests/data/)
+uv run divebridge inspect tests/data/cressi/*.xlsx
+uv run divebridge export-uddf -o out/ tests/data/cressi/*.xlsx
 export SSI_EMAIL=you@example.com SSI_PASSWORD=...
 uv run divebridge ssi-login               # check credentials
 uv run divebridge ssi-sites "Monterey"    # search the SSI site database (downloaded + cached in .data/)
-uv run divebridge ssi-push data/cressi/*.xlsx            # dry run, prints what would be sent
+uv run divebridge ssi-push tests/data/cressi/*.xlsx            # dry run, prints what would be sent
 uv run divebridge ssi-push --send --site-id 1234 file.xlsx   # really upload
 uv run divebridge serve --reload          # web UI on http://localhost:8099
 ```
@@ -68,7 +68,7 @@ src/divebridge/
   ssi/                  client.py (private MySSI API), sites.py (site DB), payload.py (save_divelog body)
   cli.py                command line
   web/                  FastAPI app + Jinja2 templates (ingress-aware: X-Ingress-Path)
-tests/                  pytest, fixtures use data/cressi/*.xlsx
+tests/                  pytest, fixtures use tests/data/cressi/*.xlsx
 config.yaml, build.yaml, Dockerfile, run.sh   Home Assistant add-on packaging
 ```
 
@@ -77,7 +77,7 @@ config.yaml, build.yaml, Dockerfile, run.sh   Home Assistant add-on packaging
 1. Create `src/divebridge/importers/<format>.py` with a class that has `name`, `description`,
    `extensions`, `can_handle(filename, data)` and `parse(filename, data) -> list[Dive]`.
 2. Append an instance to `IMPORTERS` in `importers/registry.py`.
-3. Add a sample file under `data/<format>/` and a test.
+3. Add a sample file under `tests/data/<format>/` and a test.
 
 ### Input format notes (Cressi DiveSync)
 
