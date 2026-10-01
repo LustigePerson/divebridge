@@ -133,3 +133,13 @@ def test_zip_upload(tmp_path):
     assert "Review 3 dive(s)" in r.text
     assert "readme.txt: unknown format" in r.text
 
+
+
+def test_companion_app_gets_single_file_input():
+    c = TestClient(app)
+    page = c.get("/", headers={"User-Agent": "Mozilla/5.0 (Linux; Android 16) Home Assistant/2026.6.5 (Android 16; SM-S931B)"}).text
+    assert 'name="files"  required' in page or 'name="files" required' in page
+    assert "multiple" not in page.split('name="files"')[1].split(">")[0]
+    assert "ZIP" in page
+    page = c.get("/", headers={"User-Agent": "Mozilla/5.0 Chrome/150"}).text
+    assert 'name="files" multiple required' in page

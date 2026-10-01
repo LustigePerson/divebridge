@@ -116,6 +116,10 @@ Known facts and quirks:
 - `odin_user_log_diveComputer` (legacy free text) is shown by the app in the partner/center line,
   so it is left empty; the computer is identified by the `divecomputer_*` fields.
 - Deleted dives are not returned by the SSI API at all, so they do not count as duplicates.
+- Home Assistant companion app (Android): its WebView drops multi-file selections, so the add-on
+  serves a single-file input there – upload one export or a ZIP with all of them. Reported upstream
+  as [home-assistant/android#7548](https://github.com/home-assistant/android/issues/7548). The app
+  also does not support browser geolocation; use the phone's browser for that.
 - The MySSI app caches the logbook: after an upload, pull to refresh or restart the app, and
   remember the list is sorted by dive date, not by upload time.
 - Variable lists (weather, entry, body of water, special dive, …) come from `what=get_divelog_vars`;

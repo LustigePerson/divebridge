@@ -188,10 +188,17 @@ def health() -> dict[str, str]:
     return {"status": "ok", "version": __version__}
 
 
+def is_companion_app(request: Request) -> bool:
+    """The HA Android app's WebView drops multi-file selections (ClipData is ignored); its UA
+    contains 'Home Assistant/<version>'. With a single-file input the picker returns intent.data,
+    which the app handles – so we offer one file (or a ZIP) there instead of a broken multi-select."""
+    return "Home Assistant/" in request.headers.get("user-agent", "")
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     batches = sorted(state.batches.values(), key=lambda b: b.created, reverse=True)
-    return render(request, "index.html", batches=batches)
+    return render(request, "index.html", batches=batches, companion=is_companion_app(request))
 
 
 def _safe_next(next_: str | None) -> str:

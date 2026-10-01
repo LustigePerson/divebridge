@@ -3,11 +3,15 @@
 <div class="card">
   <h2>1. Upload dive computer export</h2>
   <form method="post" action="{{ root }}/upload" enctype="multipart/form-data" class="row">
-    <input type="file" name="files" multiple required>
+    <input type="file" name="files" {% if not companion %}multiple{% endif %} required>
     <button class="primary" type="submit">Upload &amp; review</button>
   </form>
-  <p class="muted">Supported: Cressi DiveSync Excel exports, several at once, or a ZIP containing them.
-  Note: the Home Assistant companion app only passes <b>one</b> file per upload (app limitation); open this page in the phone's browser to upload several files or a ZIP.</p>
+  {% if companion %}
+  <p class="muted">Companion app: pick <b>one</b> file – a single DiveSync export, or a <b>ZIP</b> with any number of exports
+  (file manager: select the files → compress). The app's browser view cannot hand over multi-selections.</p>
+  {% else %}
+  <p class="muted">Supported: Cressi DiveSync Excel exports, several at once, or a ZIP containing them.</p>
+  {% endif %}
 </div>
 
 <div class="card">
