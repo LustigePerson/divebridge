@@ -278,27 +278,6 @@ async def upload(request: Request, files: list[UploadFile] = File(...)):
     return RedirectResponse(url=f"{_root(request)}/batch/{batch.id}", status_code=303)
 
 
-@app.post("/import-folder")
-def import_folder(request: Request, folder: str = Form("")):
-    """Take every file from a folder on the host (e.g. /share/divebridge/inbox) – no file picker needed."""
-    path = Path(folder.strip() or settings.inbox_dir)
-    batch = _new_batch()
-    if not settings.is_allowed_import_dir(path):
-        batch.errors.append(f"{path}: not allowed – use a folder below {', '.join(str(r) for r in settings.allowed_import_roots())}")
-    elif not path.is_dir():
-        batch.errors.append(f"{path}: folder does not exist")
-    else:
-        incoming = [(f.name, f.read_bytes()) for f in sorted(path.iterdir())
-                    if f.is_file() and not f.name.startswith(".")]
-        if not incoming:
-            batch.errors.append(f"{path}: no files found")
-        _ingest(batch, incoming)
-        batch.files.insert(0, f"folder {path}")
-    state.remember(batch)
-    _enrich(batch)
-    return RedirectResponse(url=f"{_root(request)}/batch/{batch.id}", status_code=303)
-
-
 def _enrich(batch: Batch) -> None:
     """Add SSI duplicate status and site suggestions. Never fails: SSI may be offline / not logged in."""
     if not state.ssi_configured or not batch.dives:
