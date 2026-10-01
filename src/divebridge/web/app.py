@@ -6,6 +6,7 @@ import io
 import json
 import logging
 import secrets
+import shutil
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -15,6 +16,7 @@ from typing import Any
 from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
 
 from .. import __version__
 from ..exporters.ssi import PushResult, push_dives
@@ -23,7 +25,7 @@ from ..importers import ImportError_, detect, parse_file
 from ..importers.registry import expand_archive, is_zip_archive
 from ..model import Dive
 from ..settings import Settings
-from ..ssi.client import APIError, SsiClient
+from ..ssi.client import SsiClient
 from ..ssi.dedup import find_existing
 from ..ssi.payload import DiveOptions
 from ..ssi.vars import GROUPS, MULTI_GROUPS, VarIndex
@@ -31,6 +33,7 @@ from ..ssi.sites import SiteIndex, SiteMatch
 
 log = logging.getLogger(__name__)
 HA_INGRESS_IP = "172.30.32.2"
+MAX_BATCHES = 20  # older uploads (and their files under data_dir/uploads) are dropped
 
 
 @dataclass
@@ -74,9 +77,18 @@ class AppState:
         self.logbook = None
 
     def vars(self) -> VarIndex:
-        if self._vars is None:
+        if self._vars is None or (self._vars.client is None and self.ssi_configured):
             self._vars = VarIndex(self.settings.data_dir, self.client() if self.ssi_configured else None)
         return self._vars
+
+    def remember(self, batch: Batch) -> None:
+        """Keep the newest MAX_BATCHES uploads; delete the files of the rest."""
+        self.batches[batch.id] = batch
+        if len(self.batches) <= MAX_BATCHES:
+            return
+        for old in sorted(self.batches.values(), key=lambda b: b.created)[: len(self.batches) - MAX_BATCHES]:
+            self.batches.pop(old.id, None)
+            shutil.rmtree(self.settings.data_dir / "uploads" / old.id, ignore_errors=True)
 
     def sites(self) -> SiteIndex:
         if self._sites is None:
@@ -100,7 +112,7 @@ class AppState:
         try:
             self.logbook = self.client().get_divelog()
             self.last_error = None
-        except (APIError, Exception) as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
             self.last_error = f"SSI: {e}"
             log.warning("SSI logbook unavailable: %s", e)
         return self.logbook
@@ -159,7 +171,7 @@ def _options_from_form(form: Any, suffix: str = "") -> DiveOptions:
         buddy_ids=[int(b) for b in form.getlist(f"o_buddy{suffix}") if str(b).isdigit()],
         notes=str(g("notes") or "").strip() or None,
         rating=int(rating) if rating else None,
-        mark_imported=(form.get("mark_imported") != "0") if not suffix else True,
+        mark_imported=(form.get("mark_imported") != "0") if not suffix else None,
     )
 
 
@@ -199,9 +211,9 @@ def login(request: Request, email: str = Form(...), password: str = Form(...), n
         state.last_error = None
         for b in state.batches.values():
             _enrich(b)
-    except (APIError, Exception) as e:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
         state.last_error = f"SSI login failed: {e}"
-        state.email, state.password = None, None
+        state.email, state.password = settings.ssi_email, settings.ssi_password  # back to the add-on options
         state.reset_client()
     return RedirectResponse(url=f"{_root(request)}/{_safe_next(next)}", status_code=303)
 
@@ -221,7 +233,11 @@ def _ingest(batch: Batch, incoming: list[tuple[str, bytes]]) -> None:
     expanded: list[tuple[str, bytes]] = []
     for name, data in incoming:
         if is_zip_archive(name, data):
-            inner = expand_archive(name, data)
+            try:
+                inner = expand_archive(name, data)
+            except (ImportError_, zipfile.BadZipFile) as e:
+                batch.errors.append(str(e))
+                continue
             expanded.extend(inner)
             batch.files.append(f"{name} (zip, {len(inner)} files)")
         else:
@@ -256,9 +272,9 @@ async def upload(request: Request, files: list[UploadFile] = File(...)):
         name = Path(f.filename or "upload").name
         if data:
             incoming.append((name, data))
-    _ingest(batch, incoming)
-    state.batches[batch.id] = batch
-    _enrich(batch)
+    await run_in_threadpool(_ingest, batch, incoming)
+    state.remember(batch)
+    await run_in_threadpool(_enrich, batch)
     return RedirectResponse(url=f"{_root(request)}/batch/{batch.id}", status_code=303)
 
 
@@ -278,7 +294,7 @@ def import_folder(request: Request, folder: str = Form("")):
             batch.errors.append(f"{path}: no files found")
         _ingest(batch, incoming)
         batch.files.insert(0, f"folder {path}")
-    state.batches[batch.id] = batch
+    state.remember(batch)
     _enrich(batch)
     return RedirectResponse(url=f"{_root(request)}/batch/{batch.id}", status_code=303)
 
@@ -355,12 +371,13 @@ async def batch_ssi(request: Request, bid: str):
     if form.get("same_for_all") != "1":
         per_dive = {k: _options_from_form(form, f"_{i}") for k, i in enumerate(selected)}
     try:
-        results = push_dives(state.client(), dives, local_sites, dry_run=dry_run,
-                             skip_duplicates=form.get("allow_duplicates") != "1",
-                             options=defaults, per_dive_options=per_dive,
-                             site_bow=lambda sid: (m.bow if (m := state.sites().get(sid)) else None))
+        results = await run_in_threadpool(
+            push_dives, state.client(), dives, local_sites, dry_run=dry_run,
+            skip_duplicates=form.get("allow_duplicates") != "1",
+            options=defaults, per_dive_options=per_dive,
+            site_bow=lambda sid: (m.bow if (m := state.sites().get(sid)) else None))
         state.last_error = None
-    except (APIError, Exception) as e:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
         log.exception("push failed")
         state.last_error = f"SSI: {e}"
         results = []

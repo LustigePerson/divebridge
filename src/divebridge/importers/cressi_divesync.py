@@ -59,7 +59,8 @@ def _parse_datetime(value: Any, date_format_hint: int | None) -> datetime:
         return value
     s = str(value).strip()
     formats = list(DATE_FORMATS)
-    if date_format_hint == 1:  # assume 1 = DMY; untested, MDY stays the fallback
+    if date_format_hint == 1:  # assume 1 = DMY; untested – try it before the MDY default
+        formats.remove("%d/%m/%Y %H:%M:%S")
         formats.insert(0, "%d/%m/%Y %H:%M:%S")
     for fmt in formats:
         try:
@@ -145,8 +146,9 @@ class CressiDiveSyncImporter:
             idx = to_int(r.get("CurrentUsedMixIdx"))
             if idx and idx not in used_indices:
                 used_indices.append(idx)
-        gases = [mixes[i - 1] for i in used_indices if 1 <= i <= 7]
-        gas_pos = {idx: pos for pos, idx in enumerate(used_indices)}
+        valid_indices = [i for i in used_indices if 1 <= i <= 7]
+        gases = [mixes[i - 1] for i in valid_indices]
+        gas_pos = {idx: pos for pos, idx in enumerate(valid_indices)}  # sentinels (e.g. 255) -> no gas index
 
         samples: list[Sample] = []
         for r in profile:
@@ -188,11 +190,18 @@ class CressiDiveSyncImporter:
             ep = u16_or_none(tr.get("EndPressure"))
             if vol is None and sp is None and ep is None:
                 continue
-            unit = to_int(tr.get("TankUnit")) or 0  # 0 = imperial (cuft/psi) assumed, 1 = metric
+            unit = to_int(tr.get("TankUnit")) or 0  # 0 = imperial (cuft/psi) assumed, 1 = metric (l/bar)
+            if unit == 1 or vol is None:
+                volume_l = vol
+            else:
+                # imperial "size" is gas capacity in cuft at working pressure (AL80 = 80 cuft @ 3000 psi
+                # ≈ 11.1 l water volume); without a working pressure assume the usual 3000 psi
+                wp_psi = wp if wp else 3000.0
+                volume_l = vol * 28.3168 / (wp_psi / 14.696)
             tank_list.append(
                 Tank(
                     index=to_int(tr.get("TankNo")) or len(tank_list) + 1,
-                    volume_l=vol if unit == 1 else (vol * 28.3168 if vol is not None else None),
+                    volume_l=round(volume_l, 2) if volume_l is not None else None,
                     working_pressure_bar=wp if unit == 1 else (psi_to_bar(wp) if wp is not None else None),
                     start_bar=sp if unit == 1 else (psi_to_bar(sp) if sp is not None else None),
                     end_bar=ep if unit == 1 else (psi_to_bar(ep) if ep is not None else None),

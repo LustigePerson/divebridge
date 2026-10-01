@@ -44,10 +44,8 @@ def _client(settings: Settings) -> SsiClient:
             import getpass
 
             password = getpass.getpass("SSI password: ")
-    client = SsiClient(email, password, data_dir=settings.data_dir)
-    if not client.has_token and (not email or not password):
-        raise APIError("SSI e-mail/password not configured (set SSI_EMAIL/SSI_PASSWORD or run interactively)")
-    return client
+    # no credentials is fine for offline dry runs; any real SSI call raises a clear APIError
+    return SsiClient(email, password, data_dir=settings.data_dir)
 
 
 def cmd_formats(_: argparse.Namespace, __: Settings) -> int:
@@ -169,11 +167,21 @@ def cmd_ssi_push(args: argparse.Namespace, settings: Settings) -> int:
     dives = _load(args.files)
     client = _client(settings)
     site_ids: dict[int, int | None] = {}
+    logbook = None
+    idx = None
+    online = bool(settings.ssi_email or client.has_token)
+    if online:
+        idx = SiteIndex(settings.data_dir, client)
+        try:
+            logbook = client.get_divelog()
+        except APIError as e:
+            if args.send:
+                raise
+            print(f"(SSI logbook not available: {e})")
     if args.site_id:
         site_ids = {i: args.site_id for i in range(len(dives))}
-    elif not args.no_site_lookup and (settings.ssi_email or client.has_token):
-        idx = SiteIndex(settings.data_dir, client)
-        visited = {int(s["odin_dive_sites_id"]) for s in client.get_divelog().get("logbook_sites", []) if s.get("odin_dive_sites_id")}
+    elif not args.no_site_lookup and idx is not None:
+        visited = {int(s["odin_dive_sites_id"]) for s in (logbook or {}).get("logbook_sites", []) if s.get("odin_dive_sites_id")}
         for i, d in enumerate(dives):
             if d.site and d.site.name:
                 hits = idx.search(d.site.name, limit=1, prefer=visited)
@@ -181,9 +189,8 @@ def cmd_ssi_push(args: argparse.Namespace, settings: Settings) -> int:
                 print(f"site for {d.site.name!r}: {hits[0].label if hits else 'not found'}")
     from .ssi.payload import DiveOptions
 
-    idx = SiteIndex(settings.data_dir, client) if settings.ssi_email or client.has_token else None
     results = push_dives(client, dives, site_ids, dry_run=not args.send, skip_duplicates=not args.allow_duplicates,
-                         options=DiveOptions(mark_imported=not args.no_imported_flag),
+                         logbook=logbook, options=DiveOptions(mark_imported=not args.no_imported_flag),
                          site_bow=(lambda sid: (m.bow if (m := idx.get(sid)) else None)) if idx else None)
     for r in results:
         print(f"{r.status:18s} {r.dive.summary()}  -> {r.message}")

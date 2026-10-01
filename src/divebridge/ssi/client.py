@@ -80,9 +80,18 @@ class SsiClient:
         return self._token is not None
 
     # -- low level -----------------------------------------------------------
+    def _request(self, method: str, what: str, params: dict[str, str], data: dict[str, str] | None = None) -> httpx.Response:
+        """HTTP call whose failures never echo the URL – it carries password or token in the query."""
+        try:
+            r = self._http.request(method, RPC_ENDPOINT, params={"what": what, **params}, data=data)
+        except httpx.HTTPError as e:
+            raise APIError(f"{what}: {type(e).__name__} talking to api.divessi.com") from None
+        if r.status_code >= 400:
+            raise APIError(f"{what}: HTTP {r.status_code} from api.divessi.com")
+        return r
+
     def _get(self, what: str, **params: str) -> Any:
-        r = self._http.get(RPC_ENDPOINT, params={"what": what, **params})
-        r.raise_for_status()
+        r = self._request("GET", what, params)
         try:
             data = r.json()
         except ValueError as e:
@@ -93,8 +102,7 @@ class SsiClient:
 
     def _post(self, what: str, body: dict[str, Any], **params: str) -> Any:
         encoded = {"json_data": json.dumps(body, separators=(",", ":"))}
-        r = self._http.post(RPC_ENDPOINT, params={"what": what, **params}, data=encoded)
-        r.raise_for_status()
+        r = self._request("POST", what, params, data=encoded)
         try:
             data = r.json()
         except ValueError:
@@ -141,8 +149,12 @@ class SsiClient:
         return self._with_token(lambda t: self._post("save_divelog", payload, token=t))
 
     def download_sites_zip(self) -> bytes:
-        r = self._http.get(SITES_CACHE_URL)
-        r.raise_for_status()
+        try:
+            r = self._http.get(SITES_CACHE_URL)
+        except httpx.HTTPError as e:
+            raise APIError(f"site database: {type(e).__name__} downloading APP_CACHE_SITES.zip") from None
+        if r.status_code >= 400:
+            raise APIError(f"site database: HTTP {r.status_code} downloading APP_CACHE_SITES.zip")
         return r.content
 
     def close(self) -> None:

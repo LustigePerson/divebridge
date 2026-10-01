@@ -5,6 +5,7 @@ from __future__ import annotations
 import difflib
 import io
 import json
+import logging
 import time
 import zipfile
 from dataclasses import dataclass
@@ -13,6 +14,8 @@ from typing import Any
 
 from ..units import haversine_m
 from .client import SsiClient
+
+log = logging.getLogger(__name__)
 
 CACHE_TTL_S = 7 * 24 * 3600
 NEAREST_MAX_M = 5_000
@@ -51,12 +54,28 @@ class SiteIndex:
         return self.data_dir / "ssi-sites.json"
 
     def ensure(self, force: bool = False) -> None:
+        """Download the site DB when missing or stale. A failed refresh keeps the stale copy."""
         f = self.json_file
         fresh = f.exists() and (time.time() - f.stat().st_mtime) < CACHE_TTL_S
         if fresh and not force:
             return
+        try:
+            self._download()
+        except Exception as e:  # noqa: BLE001
+            if f.exists() and not force:
+                log.warning("site database refresh failed, using cached copy: %s", e)
+                return
+            raise
+
+    def _download(self) -> None:
+        f = self.json_file
+        own_client = self.client is None
         client = self.client or SsiClient(data_dir=self.data_dir)
-        raw = client.download_sites_zip()
+        try:
+            raw = client.download_sites_zip()
+        finally:
+            if own_client:
+                client.close()
         with zipfile.ZipFile(io.BytesIO(raw)) as zf:
             name = next((n for n in zf.namelist() if n.endswith(".json")), None)
             if name is None:

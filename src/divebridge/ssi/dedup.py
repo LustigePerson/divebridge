@@ -38,7 +38,14 @@ def find_existing(dive: Dive, logbook_details: list[dict[str, Any]]) -> dict[str
     return None
 
 
+def _as_int(v: Any) -> int | None:
+    try:
+        return int(float(v))
+    except (TypeError, ValueError):
+        return None
+
+
 def next_log_number(logbook_details: list[dict[str, Any]]) -> int:
-    nrs = [int(e["odin_user_log_nr"]) for e in logbook_details
-           if e.get("odin_user_log_nr") is not None and e.get("odin_user_log_deleted") not in (1, True)]
+    nrs = [n for e in logbook_details if e.get("odin_user_log_deleted") not in (1, True)
+           if (n := _as_int(e.get("odin_user_log_nr"))) is not None]
     return (max(nrs) if nrs else 0) + 1

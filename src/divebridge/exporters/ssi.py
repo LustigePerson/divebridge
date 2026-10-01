@@ -77,7 +77,7 @@ def push_dives(client: SsiClient, dives: list[Dive], site_ids: dict[int, int | N
             continue
         try:
             resp = client.save_divelog(payload)
-        except (APIError, Exception) as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
             log.exception("save_divelog failed for %s", dive.summary())
             results.append(PushResult(dive, "error", log_nr=nr, site_id=site_id, payload=payload, message=str(e)))
             continue

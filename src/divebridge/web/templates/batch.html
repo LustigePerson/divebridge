@@ -172,8 +172,12 @@ function updateMeta(i) {
 function renderOptions(i, hits) {
   const sel = document.getElementById('site_' + i);
   const keep = sel.value;
-  sel.innerHTML = '<option value="">— no site —</option>' + hits.map(h =>
-    `<option value="${h.id}" data-bow="${h.bow || ''}" data-lat="${h.lat ?? ''}" data-lon="${h.lon ?? ''}" data-name="${h.name.replace(/"/g, '&quot;')}">${h.label}${h.distance_km != null ? ' · ' + h.distance_km + ' km' : ''}</option>`).join('');
+  sel.replaceChildren(new Option('— no site —', ''));
+  for (const h of hits) {   // DOM API, never innerHTML: site names are third-party data
+    const o = new Option(h.label + (h.distance_km != null ? ' · ' + h.distance_km + ' km' : ''), String(h.id));
+    o.dataset.bow = h.bow || ''; o.dataset.lat = h.lat ?? ''; o.dataset.lon = h.lon ?? ''; o.dataset.name = h.name;
+    sel.add(o);
+  }
   if (hits.length) sel.value = hits.some(h => String(h.id) === keep) ? keep : String(hits[0].id);
   updateMeta(i);
 }
@@ -206,7 +210,7 @@ document.getElementById('locate').addEventListener('click', () => {
     pos = {lat: p.coords.latitude, lon: p.coords.longitude};
     info.textContent = `position ${pos.lat.toFixed(4)}, ${pos.lon.toFixed(4)} – lists re-sorted by distance`;
     document.querySelectorAll('.sitesearch').forEach(inp => query(inp.dataset.i, inp.value.trim()));
-  }, err => { info.textContent = 'could not get position: ' + err.message + ' (needs HTTPS or localhost)'; }, {enableHighAccuracy: true, timeout: 15000});
+  }, err => { info.textContent = 'could not get position: ' + err.message + ' – the Home Assistant companion app does not support browser geolocation; open this page in the phone browser instead'; }, {enableHighAccuracy: true, timeout: 15000});
 });
 
 // ---- map overlay (Leaflet + OpenStreetMap)

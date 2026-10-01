@@ -52,7 +52,7 @@ class DiveOptions:
     rating: int | None = None  # 1-5
     # Verified 2026-10-01: with this flag the MySSI app shows a computer icon in the list and a
     # "dive computer" field in the dive details; the reference project sends false.
-    mark_imported: bool = True
+    mark_imported: bool | None = True  # None in a per-dive override = keep the batch default
 
     def resolve_watertype(self, site_bow: str | None) -> None:
         """Unset water type -> salt/fresh from the dive site's body of water, if known."""
@@ -65,8 +65,9 @@ class DiveOptions:
             return DiveOptions(**vars(self))
         out = DiveOptions(**vars(self))
         for k, v in vars(override).items():
-            if isinstance(v, bool) or v not in (None, "", [], ()):
-                setattr(out, k, v)
+            if v is None or (not isinstance(v, bool) and v in ("", [], ())):
+                continue
+            setattr(out, k, v)
         return out
 
 
@@ -74,20 +75,36 @@ def _r(v: float | None, nd: int = 2) -> float | None:
     return None if v is None else round(v, nd)
 
 
-def _interp(samples: list[Sample], t: float) -> tuple[float, Sample]:
-    """Linear depth interpolation at time t; returns (depth, nearest-or-previous sample)."""
-    prev = samples[0]
-    for s in samples:
-        if s.t_s == t:
-            return s.depth_m, s
-        if s.t_s > t:
-            if s.t_s == prev.t_s:
-                return s.depth_m, s
-            f = (t - prev.t_s) / (s.t_s - prev.t_s)
-            d = prev.depth_m + f * (s.depth_m - prev.depth_m)
-            return d, (s if f > 0.5 else prev)
-        prev = s
-    return prev.depth_m, prev
+class _Cursor:
+    """Walks the (sorted) samples once while the output grid advances – O(n) instead of O(n²)."""
+
+    def __init__(self, samples: list[Sample]):
+        self.samples = samples
+        self.i = 0
+        self.temps = [s for s in samples if s.temp_c is not None]
+        self.ti = 0
+
+    def at(self, t: float) -> tuple[float, Sample]:
+        """Linear depth interpolation at time t; returns (depth, nearest-or-previous sample)."""
+        s = self.samples
+        while self.i + 1 < len(s) and s[self.i + 1].t_s <= t:
+            self.i += 1
+        prev = s[self.i]
+        if self.i + 1 >= len(s) or prev.t_s == t:
+            return prev.depth_m, prev
+        nxt = s[self.i + 1]
+        if nxt.t_s == prev.t_s:
+            return nxt.depth_m, nxt
+        f = (t - prev.t_s) / (nxt.t_s - prev.t_s)
+        return prev.depth_m + f * (nxt.depth_m - prev.depth_m), (nxt if f > 0.5 else prev)
+
+    def temp_near(self, t: float) -> float | None:
+        ts = self.temps
+        if not ts:
+            return None
+        while self.ti + 1 < len(ts) and abs(ts[self.ti + 1].t_s - t) <= abs(ts[self.ti].t_s - t):
+            self.ti += 1
+        return ts[self.ti].temp_c
 
 
 def resample(dive: Dive, interval_s: int = SAMPLE_INTERVAL_S) -> list[dict[str, Any]]:
@@ -95,18 +112,18 @@ def resample(dive: Dive, interval_s: int = SAMPLE_INTERVAL_S) -> list[dict[str, 
     src = dive.samples
     if not src:
         return []
-    temps = [s for s in src if s.temp_c is not None]
+    cur = _Cursor(src)
     out: list[dict[str, Any]] = []
     t_end = max(dive.duration_s, int(src[-1].t_s))
     at_depth = False
     n = 1
     for t in range(0, t_end + 1, interval_s):
-        depth, near = _interp(src, float(t))
+        depth, near = cur.at(float(t))
         depth = round(depth, 2)
         # temperature: nearest sample that has one
         temp = near.temp_c
-        if temp is None and temps:
-            temp = min(temps, key=lambda s: abs(s.t_s - t)).temp_c
+        if temp is None:
+            temp = cur.temp_near(float(t))
         ndl = near.ndl_min if near.ndl_min is not None else 99
         ndl = min(max(ndl, 0), 99)
         if depth >= 8.5:
