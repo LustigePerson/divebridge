@@ -47,3 +47,24 @@ def test_parse_profile(sample_dives):
 def test_bad_file():
     with pytest.raises(ImportError_):
         parse_file("x.xlsx", b"PK\x03\x04garbage")
+
+
+def test_parse_other_exports():
+    from pathlib import Path
+
+    d = Path(__file__).parent / "data" / "cressi"
+    got = {}
+    for f in sorted(d.glob("SKIFF_*.xlsx")):
+        dives = parse_file(f.name, f.read_bytes())
+        assert len(dives) == 1
+        got[f.name] = dives[0]
+    catalina = got["SKIFF_000002_10_15_2025_041216.xlsx"]
+    assert catalina.site.name == "Catalina Island" and catalina.number == 2
+    assert catalina.duration_s == 1354 and abs(catalina.max_depth_m - 27.7) < 0.1
+    assert catalina.surface_interval_s == 3250 and len(catalina.samples) == 653
+    san_diego = got["SKIFF_000002_10_15_2025_100612.xlsx"]
+    assert san_diego.site.name == "San Diego" and san_diego.number == 3
+    assert len(san_diego.samples) == 402 and san_diego.water_temp_min_c == 21.0
+    # one physical computer, three distinct dive refs
+    assert len({d.computer.ref for d in got.values()}) == 1
+    assert len({d.dive_ref for d in got.values()}) == 3
