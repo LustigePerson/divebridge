@@ -98,6 +98,19 @@ Sheets `DiveLog` (one row per dive, **imperial**: ft, °F, psi), `DiveProfile` (
 without transmitter), `SpeedFpm` is an unsigned 16-bit value that wraps for negative speeds.
 The device reports its platform name (`SKIFF`); it is mapped to the product name "Da Vinci".
 
+### Verified against a real MySSI logbook (2026-10-01)
+
+Uploaded dives are read back and compared field by field (`ssi-verify`, also automatic after upload).
+Known facts and quirks:
+
+- Surface interval (`si_before`) is in **seconds**; MySSI shows it as hh:mm.
+- Water type ids: 5 = salt, 4 = fresh (the reference project had this the other way round).
+  Default "auto" takes it from the chosen SSI dive site.
+- Gradient factors are sent as the export reports them (e.g. 89/89) even though DiveSync displays
+  the conservatism preset as "C0 90/90". The export has no column for the preset.
+- Memo from DiveSync becomes the SSI note; UI notes are appended.
+- Deleted dives are not returned by the SSI API at all, so they do not count as duplicates.
+
 ## Roadmap
 
 - v2: push directly to divelogs.de (official REST API, `POST /api/dives`)
