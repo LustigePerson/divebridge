@@ -165,7 +165,8 @@ def _options_from_form(form: Any, suffix: str = "") -> DiveOptions:
 @app.middleware("http")
 async def ingress_guard(request: Request, call_next):
     if settings.ingress_only and request.client and request.client.host != HA_INGRESS_IP:
-        return Response("forbidden", status_code=403)
+        log.warning("rejected request from %s (ingress-only mode; expected %s)", request.client.host, HA_INGRESS_IP)
+        return Response("forbidden (ingress only)", status_code=403)
     return await call_next(request)
 
 
