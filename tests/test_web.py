@@ -143,3 +143,12 @@ def test_companion_app_gets_single_file_input():
     assert "ZIP" in page
     page = c.get("/", headers={"User-Agent": "Mozilla/5.0 Chrome/150"}).text
     assert 'name="files" multiple required' in page
+
+
+def test_diag_page_and_echo(sample_bytes):
+    c = TestClient(app)
+    page = c.get("/diag", headers={"User-Agent": "X Home Assistant/2026.6.5 (Android 16; SM-S931B)"}).text
+    assert "Detected as companion app</td><td>yes" in page
+    r = c.post("/diag/echo", files=[("files", ("z.zip", sample_bytes, "application/zip"))])
+    assert "z.zip" in r.text and "%d bytes" % len(sample_bytes) in r.text
+    assert "no file part" in c.post("/diag/echo").text

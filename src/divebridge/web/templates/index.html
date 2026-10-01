@@ -6,6 +6,7 @@
     <input type="file" name="files" {% if not companion %}multiple{% endif %} required>
     <button class="primary" type="submit">Upload &amp; review</button>
   </form>
+  <p class="muted"><a href="{{ root }}/diag">upload diagnostics</a></p>
   {% if companion %}
   <p class="muted">Companion app: pick <b>one</b> file – a single DiveSync export, or a <b>ZIP</b> with any number of exports
   (file manager: select the files → compress). The app's browser view cannot hand over multi-selections.</p>

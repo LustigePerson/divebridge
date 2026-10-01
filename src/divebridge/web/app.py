@@ -180,7 +180,30 @@ async def ingress_guard(request: Request, call_next):
     if settings.ingress_only and request.client and request.client.host != HA_INGRESS_IP:
         log.warning("rejected request from %s (ingress-only mode; expected %s)", request.client.host, HA_INGRESS_IP)
         return Response("forbidden (ingress only)", status_code=403)
-    return await call_next(request)
+    response = await call_next(request)
+    # one line per request so the add-on log shows what the browser/app actually sends
+    log.info("%s %s -> %s (ua: %s)", request.method, request.url.path, response.status_code,
+             request.headers.get("user-agent", "-")[:120])
+    return response
+
+
+@app.get("/diag", response_class=HTMLResponse)
+def diag(request: Request, echo: str = ""):
+    """Diagnostics for file picking in WebViews (companion app): what reaches the page / the server."""
+    return render(request, "diag.html", ua=request.headers.get("user-agent", "-"),
+                  companion=is_companion_app(request), client=request.client.host if request.client else "-", echo=echo)
+
+
+@app.post("/diag/echo", response_class=HTMLResponse)
+async def diag_echo(request: Request, files: list[UploadFile] = File(default=[])):
+    parts = []
+    for f in files:
+        data = await f.read()
+        parts.append(f"{f.filename!r}: {len(data)} bytes, {f.content_type}")
+    msg = "server received " + (", ".join(parts) if parts else "no file part")
+    log.info("diag: %s", msg)
+    return render(request, "diag.html", ua=request.headers.get("user-agent", "-"),
+                  companion=is_companion_app(request), client=request.client.host if request.client else "-", echo=msg)
 
 
 @app.get("/health")
@@ -198,7 +221,9 @@ def is_companion_app(request: Request) -> bool:
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     batches = sorted(state.batches.values(), key=lambda b: b.created, reverse=True)
-    return render(request, "index.html", batches=batches, companion=is_companion_app(request))
+    companion = is_companion_app(request)
+    log.info("index: serving %s upload form", "single-file (companion app)" if companion else "multi-file")
+    return render(request, "index.html", batches=batches, companion=companion)
 
 
 def _safe_next(next_: str | None) -> str:
@@ -274,12 +299,15 @@ def _new_batch() -> Batch:
 async def upload(request: Request, files: list[UploadFile] = File(...)):
     batch = _new_batch()
     incoming: list[tuple[str, bytes]] = []
+    log.info("upload: %d file part(s) received", len(files))
     for f in files:
         data = await f.read()
         name = Path(f.filename or "upload").name
+        log.info("upload: %r, %d bytes, content-type %s", name, len(data), f.content_type)
         if data:
             incoming.append((name, data))
     await run_in_threadpool(_ingest, batch, incoming)
+    log.info("upload: batch %s -> %d dive(s), %d error(s): %s", batch.id, len(batch.dives), len(batch.errors), batch.errors)
     state.remember(batch)
     await run_in_threadpool(_enrich, batch)
     return RedirectResponse(url=f"{_root(request)}/batch/{batch.id}", status_code=303)
