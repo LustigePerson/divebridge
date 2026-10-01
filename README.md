@@ -128,18 +128,21 @@ Known facts and quirks:
 
 ## Status / TODO
 
-Done and verified against a real MySSI logbook (2026-10-01): DiveSync XLSX import, UDDF export,
-SSI upload with profile, all optional fields, duplicate detection, read-back verification,
-dive site search with distance / map, web UI, CLI, add-on packaging (Docker build + run script).
+Done and verified (2026-10-01): DiveSync XLSX import, UDDF export, SSI upload with profile and all
+optional fields, duplicate detection, read-back verification against a real MySSI logbook, dive
+site search with distance / map, web UI, CLI, add-on installed from this repository on a real
+Home Assistant and used from the companion app (single file / ZIP) and from the phone browser.
 
 Open:
 
-- [ ] Install as add-on on a real Home Assistant and run the whole flow from the companion app
-      (ingress, HTTPS geolocation, `/share` output).
 - [ ] First export from a real Cressi Da Vinci: date format with non-US settings, memo, nitrox,
       several dives in one file, device name (currently `SKIFF` is mapped to "Da Vinci").
 - [ ] Verify dive site mapping with real dives; use GPS from the export (`GPSStartDive`) for the
       nearest-site lookup once a real export shows the coordinate format.
+- [ ] Companion app: once [home-assistant/android#7549](https://github.com/home-assistant/android/pull/7549)
+      is released, drop the single-file input for Android WebViews (`is_companion_app` in
+      `web/app.py`) and allow multi-select in the app again. Browser geolocation in the app needs
+      a separate upstream fix (draft in `.data/issues/`, not filed).
 - [ ] SSI gear / equipment (`odin_user_log_gear`): needs the equipment list from the SSI profile
       (API call still to be found) and a multi-select in the UI.
 - [ ] Dive center field (`log_linked_facility_id`, centers come from `APP_CACHE_CENTER.zip`).
