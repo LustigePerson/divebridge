@@ -6,12 +6,17 @@ __pycache__/
 dist/
 build/
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
-# runtime data (token cache, site DB, uploads, exports)
+# runtime data: SSI token cache, site database, uploads, exports, dumped payloads
 .data/
 *.uddf
 payloads/
+*.log
+.env
 
-# editors
+# editors / OS
 .vscode/
 .idea/
+.DS_Store

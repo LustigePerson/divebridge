@@ -2,7 +2,7 @@ name: divebridge
 version: "0.1.0"
 slug: divebridge
 description: Import dive computer exports (Cressi DiveSync) into the SSI logbook and export UDDF
-url: https://github.com/breiz/divebridge
+url: https://github.com/LustigePerson/divebridge
 arch:
   - aarch64
   - amd64
