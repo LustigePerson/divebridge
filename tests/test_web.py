@@ -28,3 +28,73 @@ def test_unknown_file():
     c = TestClient(app)
     r = c.post("/upload", files=[("files", ("x.txt", b"hello", "text/plain"))], follow_redirects=True)
     assert "unknown format" in r.text
+
+
+def test_login_form_on_batch_page_and_redirect_back(sample_bytes, monkeypatch):
+    from divebridge.web import app as webapp
+
+    c = TestClient(app)
+    r = c.post("/upload", files=[("files", ("sample.xlsx", sample_bytes, "application/octet-stream"))],
+               follow_redirects=False)
+    bid = r.headers["location"].rsplit("/", 1)[1]
+    page = c.get(f"/batch/{bid}").text
+    assert 'name="next" value="batch/' in page  # login form shown when not logged in
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def authenticate(self): return "tok"
+        def get_divelog(self):
+            return {"logbook_details": [{"odin_user_log_nr": 7, "odin_user_log_date": "2025-10-15",
+                                         "odin_user_log_entry_time": "02:56"}]}
+        def close(self): pass
+
+    monkeypatch.setattr(webapp, "SsiClient", FakeClient)
+    monkeypatch.setattr(webapp.AppState, "sites", lambda self: (_ for _ in ()).throw(RuntimeError("offline")))
+    r = c.post("/login", data={"email": "a@b.c", "password": "x", "next": f"batch/{bid}"},
+               headers={"X-Ingress-Path": "/ing"}, follow_redirects=False)
+    assert r.headers["location"] == f"/ing/batch/{bid}"
+    page = c.get(f"/batch/{bid}").text
+    assert "already in SSI (#7)" in page  # batch was enriched after login
+    assert 'name="next"' not in page
+    # open redirect must not be possible
+    r = c.post("/login", data={"email": "a@b.c", "password": "x", "next": "https://evil"}, follow_redirects=False)
+    assert r.headers["location"] == "/"
+    webapp.state.email = webapp.state.password = None
+    webapp.state.reset_client()
+
+
+def test_push_with_options_dry_run(sample_bytes, monkeypatch):
+    import json
+
+    from divebridge.web import app as webapp
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def authenticate(self): return "tok"
+        def get_divelog(self):
+            return {"logbook_details": [{"odin_user_log_nr": 3, "odin_user_log_date": "2020-01-01",
+                                         "odin_user_log_entry_time": "10:00"}],
+                    "logbook_buddies": [{"id": 77, "firstname": "Max", "lastname": "Muster"}]}
+        def close(self): pass
+
+    monkeypatch.setattr(webapp, "SsiClient", FakeClient)
+    monkeypatch.setattr(webapp.AppState, "sites", lambda self: (_ for _ in ()).throw(RuntimeError("offline")))
+    c = TestClient(app)
+    c.post("/login", data={"email": "a@b.c", "password": "x"}, follow_redirects=False)
+    r = c.post("/upload", files=[("files", ("s.xlsx", sample_bytes, "application/octet-stream"))], follow_redirects=False)
+    bid = r.headers["location"].rsplit("/", 1)[1]
+    page = c.get(f"/batch/{bid}").text
+    assert "Max Muster" in page and 'name="same_for_all"' in page
+    r = c.post(f"/batch/{bid}/ssi", data={"selected": "0", "dry_run": "1", "same_for_all": "1",
+                                          "o_watertype": "salt", "o_tanktype": "alu", "o_weight_kg": "6,5",
+                                          "o_buddy": "77", "o_notes": "test"})
+    assert r.status_code == 200 and "dry-run" in r.text
+    res = webapp.state.batches[bid].results[0]
+    assert res.log_nr == 4
+    assert res.payload["odin_user_log_var_tanktype_id"] == 20
+    assert res.payload["odin_user_log_weight_kg"] == 6.5
+    assert res.payload["odin_user_log_buddy_ids"] == [77]
+    assert res.payload["odin_user_log_comment"] == "test"
+    json.dumps(res.payload)
+    webapp.state.email = webapp.state.password = None
+    webapp.state.reset_client()

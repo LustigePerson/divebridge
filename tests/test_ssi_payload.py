@@ -33,6 +33,9 @@ def test_payload_values(sample_dives):
     assert p["odin_user_log_divecomputer_ref"] == "Cressi Da Vinci_000002"
     assert p["odin_user_log_divecomputer_dive_ref"] == "2025-10-15T02:56:07"
     assert p["odin_user_log_tankPressureDataset"] is None
+    assert p["odin_user_log_si_before"] == 445  # seconds
+    assert p["odin_user_log_var_watertype_id"] is None  # salt id not known yet -> null, never a wrong id
+    assert p["odin_user_log_var_divetype_id"] == 24 and p["odin_user_log_var_tanktype_id"] == 19
     depths = json.loads(p["odin_user_log_depthDataset"])
     samples = json.loads(p["odin_user_log_diveSamples"])
     assert len(depths) == len(samples) == 264
@@ -48,3 +51,21 @@ def test_resample_flags(sample_dives):
     assert all(x["ndl"] <= 99 for x in s)
     shallow = [x for x in s if x["d"] <= 1.0]
     assert all(x["mf"] & FLAG_SURFACED for x in shallow)
+
+
+def test_options_merge_and_payload(sample_dives):
+    from divebridge.ssi.payload import DiveOptions
+
+    defaults = DiveOptions(tanktype="alu", tank_volume_l=12, weight_kg=6, buddy_ids=[42], notes="boat dive")
+    override = DiveOptions(divetype="", watertype="", tanktype="", weight_kg=8)
+    merged = defaults.merged(override)
+    assert merged.weight_kg == 8 and merged.tank_volume_l == 12 and merged.tanktype == "alu"
+    p = build_payload(sample_dives[0], log_nr=1, site_id=None, options=merged)
+    assert p["odin_user_log_var_tanktype_id"] == 20
+    assert p["odin_user_log_tank_vol_l"] == 12
+    assert p["odin_user_log_weight_kg"] == 8 and p["odin_user_log_weight_lb"] == 17.6
+    assert p["odin_user_log_buddy_ids"] == [42]
+    assert p["odin_user_log_comment"] == "boat dive"
+    assert p["odin_user_log_gf_set"] == "89 / 89" and p["odin_user_log_gf_set_1"] == 89
+    assert p["odin_user_log_deco_dive"] is None
+    assert set(p) == REF_KEYS

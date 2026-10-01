@@ -8,6 +8,7 @@ object; unknown/unused fields are sent as null exactly like the MySSI app does.
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass, field
 from typing import Any
 
 from ..model import Dive, Sample
@@ -21,12 +22,48 @@ FLAG_AT_DEPTH = 0x00010000
 FLAG_SAFETY_STOP = 0x00020000
 FLAG_SURFACED = 0x04000000
 
-# default "variable" ids observed in the MySSI app (fun dive, salt water, steel tank)
-VAR_DIVETYPE_FUN = 24
-VAR_WATERTYPE_SALT = 4
-VAR_TANKTYPE_STEEL = 19
-VAR_TANKTYPE_ALU = 20
+# SSI "variable" ids. Only the ones observed in the reference projects are known; entries with
+# id None are shown in the UI as "not yet known". Use `divebridge ssi-vars` on a logbook that
+# contains dives edited in the MySSI app to discover more ids, then fill them in here.
+# Verified 2026-10-01 against a real upload: watertype 4 is shown as *fresh* water in MySSI
+# (the reference project assumed salt). Unknown ids are sent as null rather than guessed.
+VARS: dict[str, dict[str, int | None]] = {
+    "divetype": {"fun": 24, "education": None},
+    "watertype": {"salt": None, "fresh": 4},
+    "tanktype": {"steel": 19, "alu": 20},
+}
 FRD_DIVETYPE_DEFAULT = 50
+
+
+@dataclass
+class DiveOptions:
+    """Manual additions that the dive computer export cannot provide."""
+
+    divetype: str = "fun"
+    watertype: str = "salt"
+    tanktype: str = "steel"
+    tank_volume_l: float | None = None
+    start_bar: float | None = None
+    end_bar: float | None = None
+    weight_kg: float | None = None
+    visibility_m: float | None = None
+    air_temp_c: float | None = None
+    buddy_ids: list[int] = field(default_factory=list)
+    notes: str | None = None  # appended to the computer's memo
+    rating: int | None = None  # 1-5
+
+    def var(self, group: str) -> int | None:
+        return VARS[group].get(getattr(self, group))
+
+    def merged(self, override: "DiveOptions | None") -> "DiveOptions":
+        """Per-dive override wins where it is set; otherwise the batch default applies."""
+        if override is None:
+            return self
+        out = DiveOptions(**vars(self))
+        for k, v in vars(override).items():
+            if v not in (None, "", [], ()):
+                setattr(out, k, v)
+        return out
 
 
 def _r(v: float | None, nd: int = 2) -> float | None:
@@ -98,8 +135,11 @@ def resample(dive: Dive, interval_s: int = SAMPLE_INTERVAL_S) -> list[dict[str, 
 
 
 def build_payload(dive: Dive, log_nr: int, site_id: int | None,
-                  divetype_id: int = VAR_DIVETYPE_FUN, watertype_id: int = VAR_WATERTYPE_SALT,
-                  tanktype_id: int | None = VAR_TANKTYPE_STEEL) -> dict[str, Any]:
+                  options: DiveOptions | None = None) -> dict[str, Any]:
+    opt = options or DiveOptions()
+    divetype_id = opt.var("divetype")
+    watertype_id = opt.var("watertype")
+    tanktype_id = opt.var("tanktype")
     samples = resample(dive)
     dt = dive.start
     date_str = f"{dt:%Y-%m-%d}"
@@ -110,8 +150,8 @@ def build_payload(dive: Dive, log_nr: int, site_id: int | None,
     wt_min = dive.water_temp_min_c if dive.water_temp_min_c is not None else (min(temps) if temps else None)
     wt_max = dive.water_temp_max_c if dive.water_temp_max_c is not None else (max(temps) if temps else None)
 
-    p_start = dive.start_pressure_bar
-    p_end = dive.end_pressure_bar
+    p_start = opt.start_bar if opt.start_bar is not None else dive.start_pressure_bar
+    p_end = opt.end_bar if opt.end_bar is not None else dive.end_pressure_bar
     has_pressure = any("pressure" in s for s in samples)
     tank_pressure_ds = json.dumps([s.get("pressure") for s in samples]) if has_pressure else None
 
@@ -119,8 +159,10 @@ def build_payload(dive: Dive, log_nr: int, site_id: int | None,
     device_name = comp.display_name if comp else "Unknown dive computer"
     gas = dive.primary_gas
     ean = None if gas.is_air else 1
-    tank_vol = next((t.volume_l for t in dive.tanks if t.volume_l), None)
+    tank_vol = opt.tank_volume_l if opt.tank_volume_l is not None else next((t.volume_l for t in dive.tanks if t.volume_l), None)
     site = dive.site
+    notes = " ".join(x for x in (dive.notes, opt.notes) if x) or None
+    gf_set = f"{dive.gf_low} / {dive.gf_high}" if dive.gf_low is not None and dive.gf_high is not None else None
 
     avg = dive.avg_depth_m if dive.avg_depth_m is not None else (
         round(sum(s["d"] for s in samples) / len(samples), 2) if samples else dive.max_depth_m)
@@ -145,9 +187,9 @@ def build_payload(dive: Dive, log_nr: int, site_id: int | None,
         "odin_user_log_avg_depth_ft": _r(m_to_ft(avg)),
         "odin_user_log_divetime": dive.duration_min,
         "odin_user_log_dive_type": 0,
-        "odin_user_log_rating": None,
-        "odin_user_log_airtemp_c": None,
-        "odin_user_log_airtemp_f": None,
+        "odin_user_log_rating": opt.rating,
+        "odin_user_log_airtemp_c": _r(opt.air_temp_c, 1),
+        "odin_user_log_airtemp_f": _r(c_to_f(opt.air_temp_c), 1) if opt.air_temp_c is not None else None,
         "odin_user_log_watertemp_c": _r(wt_min),
         "odin_user_log_watertemp_f": _r(c_to_f(wt_min)) if wt_min is not None else None,
         "odin_user_log_watertemp_max_c": _r(wt_max),
@@ -159,12 +201,12 @@ def build_payload(dive: Dive, log_nr: int, site_id: int | None,
         "odin_user_log_pressure_end_psi": round(bar_to_psi(p_end)) if p_end else None,
         # --- site, buddies, gear ---
         "odin_user_log_dive_sites_id": site_id,
-        "odin_user_log_buddy_ids": [],
+        "odin_user_log_buddy_ids": list(opt.buddy_ids),
         "odin_user_log_animal_ids": [],
         "odin_user_log_gear": [],
         "odin_user_log_user_master_id": None,
         "odin_user_log_leader_nr": None,
-        "odin_user_log_comment": dive.notes,
+        "odin_user_log_comment": notes,
         "odin_user_log_deleted": False,
         # --- date/time ---
         "odin_user_log_date": date_str,
@@ -178,10 +220,10 @@ def build_payload(dive: Dive, log_nr: int, site_id: int | None,
         "odin_user_log_var_surface_id": None,
         "odin_user_log_var_weather_id": None,
         "odin_user_log_var_tanktype_id": tanktype_id,
-        "odin_user_log_vis_m": None,
-        "odin_user_log_vis_ft": None,
-        "odin_user_log_weight_kg": None,
-        "odin_user_log_weight_lb": None,
+        "odin_user_log_vis_m": _r(opt.visibility_m, 1),
+        "odin_user_log_vis_ft": _r(m_to_ft(opt.visibility_m), 1) if opt.visibility_m is not None else None,
+        "odin_user_log_weight_kg": _r(opt.weight_kg, 1),
+        "odin_user_log_weight_lb": _r(opt.weight_kg * 2.20462, 1) if opt.weight_kg is not None else None,
         "odin_user_log_tank_vol_l": _r(tank_vol, 1),
         "odin_user_log_tank_vol_cuft": None,
         "odin_user_log_ean": ean,
@@ -242,16 +284,17 @@ def build_payload(dive: Dive, log_nr: int, site_id: int | None,
         "odin_user_log_locationDataset": None,
         "odin_user_log_diveSamples": json.dumps(samples, separators=(",", ":")),
         # --- deco ---
-        "odin_user_log_si_before": round(dive.surface_interval_s / 60) if dive.surface_interval_s else None,
-        "odin_user_log_gf_set": None,
-        "odin_user_log_gf_set_1": None,
-        "odin_user_log_gf_set_2": None,
+        # seconds – the reference sends Suunto's DiveRecoveryTime unchanged (sample value 5880)
+        "odin_user_log_si_before": int(dive.surface_interval_s) if dive.surface_interval_s else None,
+        "odin_user_log_gf_set": gf_set,
+        "odin_user_log_gf_set_1": dive.gf_low,
+        "odin_user_log_gf_set_2": dive.gf_high,
         "odin_user_log_gf_end": None,
         "odin_user_log_cns_start": None,
         "odin_user_log_cns_end": None,
         "odin_user_log_otu_start": None,
         "odin_user_log_otu_end": None,
-        "odin_user_log_deco_dive": None,
+        "odin_user_log_deco_dive": 1 if dive.deco else None,
         "odin_user_log_deco_time": None,
         "odin_user_log_deco_gas": None,
         "odin_user_log_deco_gas_tanktype_id": None,

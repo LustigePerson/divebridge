@@ -9,7 +9,8 @@ from typing import Any
 from ..model import Dive
 from ..ssi.client import APIError, SsiClient
 from ..ssi.dedup import find_existing, next_log_number
-from ..ssi.payload import build_payload
+from ..ssi.payload import DiveOptions, build_payload
+from ..ssi.verify import FieldDiff, compare
 
 log = logging.getLogger(__name__)
 
@@ -24,15 +25,20 @@ class PushResult:
     payload: dict[str, Any] | None = None
     response: Any = None
     existing: dict[str, Any] | None = field(default=None, repr=False)
+    stored: dict[str, Any] | None = field(default=None, repr=False)  # logbook entry read back after upload
+    diffs: list[FieldDiff] = field(default_factory=list)
 
 
 def push_dives(client: SsiClient, dives: list[Dive], site_ids: dict[int, int | None] | None = None,
                dry_run: bool = True, skip_duplicates: bool = True,
-               logbook: dict[str, Any] | None = None) -> list[PushResult]:
+               logbook: dict[str, Any] | None = None,
+               options: DiveOptions | None = None,
+               per_dive_options: dict[int, DiveOptions] | None = None) -> list[PushResult]:
     """Upload dives in chronological order, numbering them after the last logbook entry.
 
-    site_ids maps index-in-`dives` -> SSI dive site id (None allowed).
+    site_ids / per_dive_options map index-in-`dives` -> value; `options` are the batch defaults.
     """
+    defaults = options or DiveOptions()
     if logbook is None:
         try:
             logbook = client.get_divelog()
@@ -55,7 +61,8 @@ def push_dives(client: SsiClient, dives: list[Dive], site_ids: dict[int, int | N
                                       site_id=site_id, existing=existing,
                                       message=f"already in logbook as #{existing.get('odin_user_log_nr')}"))
             continue
-        payload = build_payload(dive, log_nr=nr, site_id=site_id)
+        payload = build_payload(dive, log_nr=nr, site_id=site_id,
+                                options=defaults.merged((per_dive_options or {}).get(i)))
         if dry_run:
             results.append(PushResult(dive, "dry-run", log_nr=nr, site_id=site_id, payload=payload,
                                       message="not sent (dry run)"))
@@ -73,6 +80,23 @@ def push_dives(client: SsiClient, dives: list[Dive], site_ids: dict[int, int | N
         details.append({"odin_user_log_nr": nr, "odin_user_log_divecomputer_dive_ref": dive.dive_ref,
                         "odin_user_log_date": f"{dive.start:%Y-%m-%d}", "odin_user_log_entry_time": f"{dive.start:%H:%M}"})
         nr += 1
+    # round-trip check: read the logbook back and compare every uploaded dive
+    if not dry_run and any(r.status == "uploaded" for r in results):
+        try:
+            fresh = client.get_divelog().get("logbook_details", [])
+        except Exception as e:  # noqa: BLE001
+            log.warning("read-back failed: %s", e)
+            fresh = []
+        for r in results:
+            if r.status != "uploaded" or not r.payload:
+                continue
+            r.stored = find_existing(r.dive, fresh)
+            if r.stored is None:
+                r.message += " – NOT found in logbook on read-back!"
+                continue
+            r.diffs = compare(r.payload, r.stored)
+            bad = [d for d in r.diffs if not d.ok]
+            r.message += f" – read back ok" if not bad else f" – read back differs: {', '.join(d.label for d in bad)}"
     # restore original order
     by_idx = {id(r.dive): r for r in results}
     return [by_idx[id(d)] for d in dives]

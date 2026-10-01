@@ -13,6 +13,12 @@
       <td>{{ r.site_id or '—' }}</td>
       <td>{{ r.message }}</td>
     </tr>
+    {% if r.diffs %}
+    <tr><td colspan="5"><details {% if r.diffs|rejectattr('ok')|list %}open{% endif %}>
+      <summary class="muted">read back from SSI: {{ r.diffs|selectattr('ok')|list|length }}/{{ r.diffs|length }} fields match</summary>
+      <table>{% for d in r.diffs %}<tr class="{{ 'ok' if d.ok else 'err' }}"><td>{{ d.label }}</td><td>sent: {{ d.sent if d.sent is not none else '—' }}</td><td>stored: {{ d.stored if d.stored is not none else '—' }}</td></tr>{% endfor %}</table>
+    </details></td></tr>
+    {% endif %}
     {% if r.payload %}
     <tr><td colspan="5"><details><summary class="muted">payload</summary><pre>{{ payload_json(r) }}</pre></details></td></tr>
     {% endif %}

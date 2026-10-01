@@ -24,6 +24,7 @@ from ..model import Dive
 from ..settings import Settings
 from ..ssi.client import APIError, SsiClient
 from ..ssi.dedup import find_existing
+from ..ssi.payload import VARS, DiveOptions
 from ..ssi.sites import SiteIndex, SiteMatch
 
 log = logging.getLogger(__name__)
@@ -74,6 +75,17 @@ class AppState:
             self._sites = SiteIndex(self.settings.data_dir, self.client())
         return self._sites
 
+    def buddies(self) -> list[tuple[int, str]]:
+        """(id, name) of the buddies known in the SSI logbook."""
+        lb = self.logbook or {}
+        out = []
+        for b in lb.get("logbook_buddies", []):
+            if b.get("deleted") in (1, True):
+                continue
+            name = " ".join(x for x in (b.get("firstname"), b.get("lastname")) if x) or b.get("nickname") or str(b.get("id"))
+            out.append((int(b["id"]), name))
+        return sorted(out, key=lambda x: x[1].lower())
+
     def refresh_logbook(self) -> dict[str, Any] | None:
         if not self.ssi_configured:
             return None
@@ -99,7 +111,35 @@ def _root(request: Request) -> str:
 
 def render(request: Request, name: str, **ctx: Any) -> HTMLResponse:
     return templates.TemplateResponse(request, name, {
-        "root": _root(request), "state": state, "version": __version__, **ctx})
+        "root": _root(request), "state": state, "version": __version__, "vars": VARS, **ctx})
+
+
+def _num(v: Any) -> float | None:
+    s = str(v or "").strip().replace(",", ".")
+    try:
+        return float(s) if s else None
+    except ValueError:
+        return None
+
+
+def _options_from_form(form: Any, suffix: str = "") -> DiveOptions:
+    """Read the optional SSI fields (batch defaults: suffix "", per dive: suffix "_<i>")."""
+    g = lambda k: form.get(f"o_{k}{suffix}")  # noqa: E731
+    rating = _num(g("rating"))
+    return DiveOptions(
+        divetype=str(g("divetype") or ("fun" if not suffix else "")),
+        watertype=str(g("watertype") or ("salt" if not suffix else "")),
+        tanktype=str(g("tanktype") or ("steel" if not suffix else "")),
+        tank_volume_l=_num(g("tank_volume_l")),
+        start_bar=_num(g("start_bar")),
+        end_bar=_num(g("end_bar")),
+        weight_kg=_num(g("weight_kg")),
+        visibility_m=_num(g("visibility_m")),
+        air_temp_c=_num(g("air_temp_c")),
+        buddy_ids=[int(b) for b in form.getlist(f"o_buddy{suffix}") if str(b).isdigit()],
+        notes=str(g("notes") or "").strip() or None,
+        rating=int(rating) if rating else None,
+    )
 
 
 @app.middleware("http")
@@ -120,16 +160,28 @@ def index(request: Request):
     return render(request, "index.html", batches=batches)
 
 
+def _safe_next(next_: str | None) -> str:
+    """Only allow relative in-app targets (e.g. "batch/abc")."""
+    n = (next_ or "").strip()
+    if not n or n.startswith(("/", "http:", "https:", "//")) or ".." in n:
+        return ""
+    return n
+
+
 @app.post("/login")
-def login(request: Request, email: str = Form(...), password: str = Form(...)):
+def login(request: Request, email: str = Form(...), password: str = Form(...), next: str = Form("")):
     state.email, state.password = email.strip(), password
     state.reset_client()
     try:
         state.client().authenticate()
         state.last_error = None
+        for b in state.batches.values():
+            _enrich(b)
     except (APIError, Exception) as e:  # noqa: BLE001
         state.last_error = f"SSI login failed: {e}"
-    return RedirectResponse(url=f"{_root(request)}/", status_code=303)
+        state.email, state.password = None, None
+        state.reset_client()
+    return RedirectResponse(url=f"{_root(request)}/{_safe_next(next)}", status_code=303)
 
 
 @app.post("/logout")
@@ -166,21 +218,25 @@ async def upload(request: Request, files: list[UploadFile] = File(...)):
         batch.dives.extend(dives)
     batch.dives.sort(key=lambda d: d.start)
     state.batches[bid] = batch
-
-    # enrich with SSI data when available (never fail the upload because of SSI)
-    if state.ssi_configured and batch.dives:
-        logbook = state.refresh_logbook()
-        details = logbook.get("logbook_details", []) if logbook else []
-        for i, d in enumerate(batch.dives):
-            batch.existing[i] = find_existing(d, details) if details else None
-            if d.site and d.site.name:
-                try:
-                    hits = state.sites().search(d.site.name, limit=1)
-                    batch.site_suggestions[i] = hits[0] if hits else None
-                except Exception as e:  # noqa: BLE001
-                    state.last_error = f"SSI site index: {e}"
-                    log.warning("site lookup failed: %s", e)
+    _enrich(batch)
     return RedirectResponse(url=f"{_root(request)}/batch/{bid}", status_code=303)
+
+
+def _enrich(batch: Batch) -> None:
+    """Add SSI duplicate status and site suggestions. Never fails: SSI may be offline / not logged in."""
+    if not state.ssi_configured or not batch.dives:
+        return
+    logbook = state.refresh_logbook()
+    details = logbook.get("logbook_details", []) if logbook else []
+    for i, d in enumerate(batch.dives):
+        batch.existing[i] = find_existing(d, details) if details else None
+        if d.site and d.site.name and i not in batch.site_suggestions:
+            try:
+                hits = state.sites().search(d.site.name, limit=1)
+                batch.site_suggestions[i] = hits[0] if hits else None
+            except Exception as e:  # noqa: BLE001
+                state.last_error = f"SSI site index: {e}"
+                log.warning("site lookup failed: %s", e)
 
 
 @app.get("/batch/{bid}", response_class=HTMLResponse)
@@ -232,9 +288,14 @@ async def batch_ssi(request: Request, bid: str):
         site_ids[i] = int(raw) if raw.isdigit() else None
     dives = [batch.dives[i] for i in selected]
     local_sites = {k: site_ids[i] for k, i in enumerate(selected)}
+    defaults = _options_from_form(form)
+    per_dive: dict[int, DiveOptions] = {}
+    if form.get("same_for_all") != "1":
+        per_dive = {k: _options_from_form(form, f"_{i}") for k, i in enumerate(selected)}
     try:
         results = push_dives(state.client(), dives, local_sites, dry_run=dry_run,
-                             skip_duplicates=form.get("allow_duplicates") != "1")
+                             skip_duplicates=form.get("allow_duplicates") != "1",
+                             options=defaults, per_dive_options=per_dive)
         state.last_error = None
     except (APIError, Exception) as e:  # noqa: BLE001
         log.exception("push failed")

@@ -85,6 +85,64 @@ def cmd_ssi_logbook(args: argparse.Namespace, settings: Settings) -> int:
     return 0
 
 
+def _print_diffs(diffs, verbose: bool) -> None:
+    for d in diffs:
+        if verbose or not d.ok:
+            print(f"   {'ok ' if d.ok else '!! '}{d.label:22s} sent={d.sent!r:30.30} stored={d.stored!r:30.30}")
+
+
+def cmd_ssi_verify(args: argparse.Namespace, settings: Settings) -> int:
+    """Compare dives from export files with what the SSI logbook stores for them."""
+    from .ssi.dedup import find_existing
+    from .ssi.payload import build_payload
+    from .ssi.verify import compare, summarize
+
+    dives = _load(args.files)
+    details = _client(settings).get_divelog().get("logbook_details", [])
+    rc = 0
+    for d in dives:
+        stored = find_existing(d, details)
+        if stored is None:
+            print(f"missing   {d.summary()}")
+            rc = 1
+            continue
+        payload = build_payload(d, log_nr=int(stored.get("odin_user_log_nr") or 0),
+                                site_id=stored.get("odin_user_log_dive_sites_id"))
+        diffs = compare(payload, stored)
+        print(f"#{stored.get('odin_user_log_nr'):<4} {d.summary()}  -> {summarize(diffs)}")
+        _print_diffs(diffs, args.verbose)
+    return rc
+
+
+def cmd_ssi_vars(args: argparse.Namespace, settings: Settings) -> int:
+    """Print the SSI variable ids used in the logbook – to discover ids for VARS in ssi/payload.py."""
+    from collections import defaultdict
+
+    from .ssi.payload import VARS
+
+    lb = _client(settings).get_divelog()
+    details = lb.get("logbook_details", [])
+    fields = ["divetype", "watertype", "tanktype", "water_body", "entry", "current", "surface", "weather", "specialdive"]
+    known = {g: {v: k for k, v in m.items() if v is not None} for g, m in VARS.items()}
+    seen: dict[str, dict[str, set[int]]] = defaultdict(lambda: defaultdict(set))
+    for e in details[-args.last:]:
+        parts = []
+        for f in fields:
+            v = e.get(f"odin_user_log_var_{f}_id")
+            if v in (None, "", 0):
+                continue
+            name = known.get(f, {}).get(v, "?")
+            parts.append(f"{f}={v}({name})")
+            seen[f][str(v)].add(int(e.get("odin_user_log_nr") or 0))
+        print(f"#{e.get('odin_user_log_nr'):>4} {e.get('odin_user_log_date')}  " + "  ".join(parts))
+    print("\nDistinct ids per variable (dive numbers):")
+    for f in fields:
+        if seen[f]:
+            print(f"  {f}: " + ", ".join(f"{v} {sorted(n)}" for v, n in sorted(seen[f].items())))
+    print("\nBuddies:", ", ".join(f"{b.get('id')}={b.get('firstname')} {b.get('lastname')}" for b in lb.get("logbook_buddies", [])) or "-")
+    return 0
+
+
 def cmd_ssi_sites(args: argparse.Namespace, settings: Settings) -> int:
     idx = SiteIndex(settings.data_dir, _client(settings))
     if args.refresh:
@@ -124,6 +182,8 @@ def cmd_ssi_push(args: argparse.Namespace, settings: Settings) -> int:
             print(f"   payload written to {f}")
         if r.response is not None and args.verbose:
             print("   response:", json.dumps(r.response)[:500])
+        if r.diffs:
+            _print_diffs(r.diffs, args.verbose)
     if not args.send:
         print("\nDry run – nothing was sent. Add --send to upload.")
     return 0 if all(r.status != "error" for r in results) else 1
@@ -160,6 +220,15 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("ssi-logbook", help="print the SSI logbook")
     s.add_argument("--last", type=int, default=20)
     s.set_defaults(fn=cmd_ssi_logbook)
+
+    s = sub.add_parser("ssi-verify", help="compare export files with the dives stored in the SSI logbook")
+    s.add_argument("files", nargs="+")
+    s.add_argument("-v", "--verbose", action="store_true", dest="verbose", help="show all fields, not only differences")
+    s.set_defaults(fn=cmd_ssi_verify)
+
+    s = sub.add_parser("ssi-vars", help="show SSI variable ids (water/dive/tank type …) used in your logbook")
+    s.add_argument("--last", type=int, default=50)
+    s.set_defaults(fn=cmd_ssi_vars)
 
     s = sub.add_parser("ssi-sites", help="search the SSI dive site database")
     s.add_argument("query", nargs="?", default="")

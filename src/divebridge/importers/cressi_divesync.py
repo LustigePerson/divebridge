@@ -255,6 +255,8 @@ class CressiDiveSyncImporter:
                 "model_id": row.get("ModelID"),
                 "dive_mode": to_int(row.get("DiveMode")),
                 "sampling_s": to_int(row.get("SamplingTime")),
+                "water_density": to_int(row.get("WaterDensity")),  # DiveSync setting; 0 observed with "salt" in the app
+                "altitude_level": to_int(row.get("AltitudeLevel")),
                 "export_version": meta.get("Version"),
                 "exported_at": meta.get("ExportedAt"),
             },
