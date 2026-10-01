@@ -77,8 +77,14 @@ def test_push_with_options_dry_run(sample_bytes, monkeypatch):
                     "logbook_buddies": [{"id": 77, "firstname": "Max", "lastname": "Muster"}]}
         def close(self): pass
 
+    class FakeSites:
+        def search(self, q, limit=1): return []
+        def get(self, sid):
+            from divebridge.ssi.sites import SiteMatch
+            return SiteMatch(id=sid, name="Blue Hole", country="", region="", lat=None, lon=None, bow="salt")
+
     monkeypatch.setattr(webapp, "SsiClient", FakeClient)
-    monkeypatch.setattr(webapp.AppState, "sites", lambda self: (_ for _ in ()).throw(RuntimeError("offline")))
+    monkeypatch.setattr(webapp.AppState, "sites", lambda self: FakeSites())
     c = TestClient(app)
     c.post("/login", data={"email": "a@b.c", "password": "x"}, follow_redirects=False)
     r = c.post("/upload", files=[("files", ("s.xlsx", sample_bytes, "application/octet-stream"))], follow_redirects=False)
@@ -86,14 +92,18 @@ def test_push_with_options_dry_run(sample_bytes, monkeypatch):
     page = c.get(f"/batch/{bid}").text
     assert "Max Muster" in page and 'name="same_for_all"' in page
     r = c.post(f"/batch/{bid}/ssi", data={"selected": "0", "dry_run": "1", "same_for_all": "1",
-                                          "o_watertype": "salt", "o_tanktype": "alu", "o_weight_kg": "6,5",
+                                          "o_tanktype": "20", "o_weight_kg": "6,5", "o_entry": "22",
+                                          "o_specialdive": ["40", "47"],
                                           "site_id_0": "441938",
                                           "o_buddy": "77", "o_notes": "test"})
     assert r.status_code == 200 and "dry-run" in r.text
     res = webapp.state.batches[bid].results[0]
     assert res.log_nr == 4
     assert res.payload["odin_user_log_var_tanktype_id"] == 20
-    assert res.payload["odin_user_log_var_watertype_id"] == 5 and res.site_id == 441938
+    assert res.payload["odin_user_log_var_watertype_id"] == 5 and res.site_id == 441938  # auto from site
+    assert res.payload["odin_user_log_var_entry_id"] == 22
+    assert res.payload["odin_user_log_var_specialdive_id"] == "40,47"
+    assert "Weather" in page and "ripping current" in page
     assert res.payload["odin_user_log_weight_kg"] == 6.5
     assert res.payload["odin_user_log_buddy_ids"] == [77]
     assert res.payload["odin_user_log_comment"] == "test"

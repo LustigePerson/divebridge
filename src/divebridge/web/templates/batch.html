@@ -1,21 +1,20 @@
 {% extends "base.html" %}
 {% macro fields(sfx, is_override) %}
   {% set e = "" if not is_override else "(default)" %}
-  <label>Dive type
-    <select name="o_divetype{{ sfx }}">
-      {% if is_override %}<option value="">{{ e }}</option>{% endif %}
-      {% for k, v in vars.divetype.items() %}<option value="{{ k }}" {% if v is none %}disabled{% endif %}>{{ k }}{% if v is none %} (id unknown yet){% endif %}</option>{% endfor %}
-    </select></label>
-  <label>Water
-    <select name="o_watertype{{ sfx }}">
-      {% if is_override %}<option value="">{{ e }}</option>{% endif %}
-      {% for k, v in vars.watertype.items() %}<option value="{{ k }}">{{ 'auto (from dive site)' if k == 'auto' else k }}</option>{% endfor %}
-    </select></label>
-  <label>Tank
-    <select name="o_tanktype{{ sfx }}">
-      {% if is_override %}<option value="">{{ e }}</option>{% endif %}
-      {% for k, v in vars.tanktype.items() %}<option value="{{ k }}" {% if v is none %}disabled{% endif %}>{{ k }}</option>{% endfor %}
-    </select></label>
+  {% for group, title in var_groups.items() %}
+  <label>{{ title }}
+    {% if group in multi_groups %}
+    <select name="o_{{ group }}{{ sfx }}" multiple size="4">
+      {% for vid, vname in var_options(group) %}<option value="{{ vid }}">{{ vname }}</option>{% endfor %}
+    </select>
+    {% else %}
+    <select name="o_{{ group }}{{ sfx }}">
+      <option value="">{% if is_override %}{{ e }}{% elif group == 'watertype' %}auto (from dive site){% else %}—{% endif %}</option>
+      {% for vid, vname in var_options(group) %}<option value="{{ vid }}" {% if not is_override and ((group == 'divetype' and vid == 24) or (group == 'tanktype' and vid == 19)) %}selected{% endif %}>{{ vname }}</option>{% endfor %}
+    </select>
+    {% endif %}
+  </label>
+  {% endfor %}
   <label>Tank volume (l)<input type="text" inputmode="decimal" name="o_tank_volume_l{{ sfx }}" placeholder="{{ e or '12' }}"></label>
   <label>Start / end pressure (bar)
     <span class="row" style="gap:4px"><input type="text" inputmode="decimal" name="o_start_bar{{ sfx }}" placeholder="{{ e or '200' }}" style="width:48%"><input type="text" inputmode="decimal" name="o_end_bar{{ sfx }}" placeholder="{{ e or '50' }}" style="width:48%"></span></label>

@@ -127,31 +127,18 @@ def cmd_ssi_verify(args: argparse.Namespace, settings: Settings) -> int:
 
 
 def cmd_ssi_vars(args: argparse.Namespace, settings: Settings) -> int:
-    """Print the SSI variable ids used in the logbook – to discover ids for VARS in ssi/payload.py."""
-    from collections import defaultdict
+    """Print the SSI logbook variable definitions (id -> name) as the MySSI app loads them."""
+    from .ssi.vars import GROUPS, VarIndex, pretty
 
-    from .ssi.payload import VARS
-
-    lb = _client(settings).get_divelog()
-    details = lb.get("logbook_details", [])
-    fields = ["divetype", "watertype", "tanktype", "water_body", "entry", "current", "surface", "weather", "specialdive"]
-    known = {g: {v: k for k, v in m.items() if v is not None} for g, m in VARS.items()}
-    seen: dict[str, dict[str, set[int]]] = defaultdict(lambda: defaultdict(set))
-    for e in details[-args.last:]:
-        parts = []
-        for f in fields:
-            v = e.get(f"odin_user_log_var_{f}_id")
-            if v in (None, "", 0):
-                continue
-            name = known.get(f, {}).get(v, "?")
-            parts.append(f"{f}={v}({name})")
-            seen[f][str(v)].add(int(e.get("odin_user_log_nr") or 0))
-        print(f"#{e.get('odin_user_log_nr'):>4} {e.get('odin_user_log_date')}  " + "  ".join(parts))
-    print("\nDistinct ids per variable (dive numbers):")
-    for f in fields:
-        if seen[f]:
-            print(f"  {f}: " + ", ".join(f"{v} {sorted(n)}" for v, n in sorted(seen[f].items())))
-    print("\nBuddies:", ", ".join(f"{b.get('id')}={b.get('firstname')} {b.get('lastname')}" for b in lb.get("logbook_buddies", [])) or "-")
+    idx = VarIndex(settings.data_dir, _client(settings))
+    if args.refresh:
+        idx.refresh()
+    table = idx.table()
+    groups = table if args.all else {g: table.get(g, {}) for g in GROUPS}
+    for group, items in groups.items():
+        print(f"{group}:")
+        for i, n in sorted(items.items()):
+            print(f"  {i:>4}  {pretty(n)}")
     return 0
 
 
@@ -240,8 +227,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("-v", "--all-fields", action="store_true", dest="all_fields", help="show all fields, not only differences")
     s.set_defaults(fn=cmd_ssi_verify)
 
-    s = sub.add_parser("ssi-vars", help="show SSI variable ids (water/dive/tank type …) used in your logbook")
-    s.add_argument("--last", type=int, default=50)
+    s = sub.add_parser("ssi-vars", help="show SSI logbook variable ids (weather, water, entry, ...)")
+    s.add_argument("--all", action="store_true", help="include freediving/XR/CCR groups")
+    s.add_argument("--refresh", action="store_true", help="re-download from SSI")
     s.set_defaults(fn=cmd_ssi_vars)
 
     s = sub.add_parser("ssi-sites", help="search the SSI dive site database")

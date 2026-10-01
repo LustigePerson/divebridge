@@ -22,27 +22,25 @@ FLAG_AT_DEPTH = 0x00010000
 FLAG_SAFETY_STOP = 0x00020000
 FLAG_SURFACED = 0x04000000
 
-# SSI "variable" ids. Only the ones observed in the reference projects are known; entries with
-# id None are shown in the UI as "not yet known". Use `divebridge ssi-vars` on a logbook that
-# contains dives edited in the MySSI app to discover more ids, then fill them in here.
-# Ids verified 2026-10-01 against a real MySSI logbook (watertype 4 = fresh, 5 = salt; the
-# reference project assumed 4 = salt). Unknown ids are sent as null rather than guessed.
-# Also observed but meaning not yet mapped: entry ids 21/22, water_body id 13.
-VARS: dict[str, dict[str, int | None]] = {
-    "divetype": {"fun": 24, "education": None},
-    "watertype": {"auto": None, "salt": 5, "fresh": 4},  # auto = from the SSI dive site ("bow")
-    "tanktype": {"steel": 19, "alu": 20},
-}
+from .vars import DIVETYPE_FUN, TANKTYPE_STEEL, WATERTYPE_FRESH, WATERTYPE_SALT  # noqa: E402
+
 FRD_DIVETYPE_DEFAULT = 50
 
 
 @dataclass
 class DiveOptions:
-    """Manual additions that the dive computer export cannot provide."""
+    """Manual additions that the dive computer export cannot provide. Variable fields hold SSI ids
+    (see ssi/vars.py); None means "not set" – for watertype it means "derive from the dive site"."""
 
-    divetype: str = "fun"
-    watertype: str = "auto"
-    tanktype: str = "steel"
+    divetype_id: int | None = DIVETYPE_FUN
+    watertype_id: int | None = None
+    tanktype_id: int | None = TANKTYPE_STEEL
+    entry_id: int | None = None
+    water_body_id: int | None = None
+    weather_id: int | None = None
+    surface_id: int | None = None
+    current_id: int | None = None
+    specialdive_ids: list[int] = field(default_factory=list)
     tank_volume_l: float | None = None
     start_bar: float | None = None
     end_bar: float | None = None
@@ -53,18 +51,15 @@ class DiveOptions:
     notes: str | None = None  # appended to the computer's memo
     rating: int | None = None  # 1-5
 
-    def var(self, group: str) -> int | None:
-        return VARS[group].get(getattr(self, group))
-
     def resolve_watertype(self, site_bow: str | None) -> None:
-        """'auto' -> salt/fresh from the dive site's body of water, if known."""
-        if self.watertype == "auto" and site_bow in ("salt", "fresh"):
-            self.watertype = site_bow
+        """Unset water type -> salt/fresh from the dive site's body of water, if known."""
+        if self.watertype_id is None:
+            self.watertype_id = {"salt": WATERTYPE_SALT, "fresh": WATERTYPE_FRESH}.get(site_bow or "")
 
     def merged(self, override: "DiveOptions | None") -> "DiveOptions":
         """Per-dive override wins where it is set; otherwise the batch default applies."""
         if override is None:
-            return self
+            return DiveOptions(**vars(self))
         out = DiveOptions(**vars(self))
         for k, v in vars(override).items():
             if v not in (None, "", [], ()):
@@ -143,9 +138,6 @@ def resample(dive: Dive, interval_s: int = SAMPLE_INTERVAL_S) -> list[dict[str, 
 def build_payload(dive: Dive, log_nr: int, site_id: int | None,
                   options: DiveOptions | None = None) -> dict[str, Any]:
     opt = options or DiveOptions()
-    divetype_id = opt.var("divetype")
-    watertype_id = opt.var("watertype")
-    tanktype_id = opt.var("tanktype")
     samples = resample(dive)
     dt = dive.start
     date_str = f"{dt:%Y-%m-%d}"
@@ -218,14 +210,14 @@ def build_payload(dive: Dive, log_nr: int, site_id: int | None,
         "odin_user_log_date": date_str,
         "odin_user_log_entry_time": entry_time,
         # --- variables ---
-        "odin_user_log_var_divetype_id": divetype_id,
-        "odin_user_log_var_water_body_id": None,
-        "odin_user_log_var_watertype_id": watertype_id,
-        "odin_user_log_var_entry_id": None,
-        "odin_user_log_var_current_id": None,
-        "odin_user_log_var_surface_id": None,
-        "odin_user_log_var_weather_id": None,
-        "odin_user_log_var_tanktype_id": tanktype_id,
+        "odin_user_log_var_divetype_id": opt.divetype_id,
+        "odin_user_log_var_water_body_id": opt.water_body_id,
+        "odin_user_log_var_watertype_id": opt.watertype_id,
+        "odin_user_log_var_entry_id": opt.entry_id,
+        "odin_user_log_var_current_id": opt.current_id,
+        "odin_user_log_var_surface_id": opt.surface_id,
+        "odin_user_log_var_weather_id": opt.weather_id,
+        "odin_user_log_var_tanktype_id": opt.tanktype_id,
         "odin_user_log_vis_m": _r(opt.visibility_m, 1),
         "odin_user_log_vis_ft": _r(m_to_ft(opt.visibility_m), 1) if opt.visibility_m is not None else None,
         "odin_user_log_weight_kg": _r(opt.weight_kg, 1),
@@ -234,7 +226,7 @@ def build_payload(dive: Dive, log_nr: int, site_id: int | None,
         "odin_user_log_tank_vol_cuft": None,
         "odin_user_log_ean": ean,
         "odin_user_log_ean_percent": round(gas.o2) if ean else None,
-        "odin_user_log_var_specialdive_id": None,
+        "odin_user_log_var_specialdive_id": ",".join(str(i) for i in opt.specialdive_ids) or None,
         "odin_user_log_amv_l": None,
         "odin_user_log_amv_psi": None,
         # --- freediving ---

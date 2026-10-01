@@ -56,16 +56,19 @@ def test_resample_flags(sample_dives):
 def test_options_merge_and_payload(sample_dives):
     from divebridge.ssi.payload import DiveOptions
 
-    defaults = DiveOptions(tanktype="alu", tank_volume_l=12, weight_kg=6, buddy_ids=[42], notes="boat dive")
-    override = DiveOptions(divetype="", watertype="", tanktype="", weight_kg=8)
+    defaults = DiveOptions(tanktype_id=20, tank_volume_l=12, weight_kg=6, buddy_ids=[42], notes="boat dive",
+                           specialdive_ids=[40, 47])
+    override = DiveOptions(divetype_id=None, tanktype_id=None, weight_kg=8)
     merged = defaults.merged(override)
-    assert merged.weight_kg == 8 and merged.tank_volume_l == 12 and merged.tanktype == "alu"
+    assert merged.weight_kg == 8 and merged.tank_volume_l == 12 and merged.tanktype_id == 20
+    assert merged.divetype_id == 24
     p = build_payload(sample_dives[0], log_nr=1, site_id=None, options=merged)
     assert p["odin_user_log_var_tanktype_id"] == 20
     assert p["odin_user_log_tank_vol_l"] == 12
     assert p["odin_user_log_weight_kg"] == 8 and p["odin_user_log_weight_lb"] == 17.6
     assert p["odin_user_log_buddy_ids"] == [42]
     assert p["odin_user_log_comment"] == "boat dive"
+    assert p["odin_user_log_var_specialdive_id"] == "40,47"
     assert p["odin_user_log_gf_set"] == "89 / 89" and p["odin_user_log_gf_set_1"] == 89
     assert p["odin_user_log_deco_dive"] is None
     assert set(p) == REF_KEYS
@@ -77,6 +80,16 @@ def test_watertype_auto_from_site(sample_dives):
     o = DiveOptions()
     o.resolve_watertype("salt")
     assert build_payload(sample_dives[0], 1, 5, options=o)["odin_user_log_var_watertype_id"] == 5
-    o = DiveOptions(watertype="fresh")
+    o = DiveOptions(watertype_id=4)
     o.resolve_watertype("salt")  # explicit choice wins
     assert build_payload(sample_dives[0], 1, 5, options=o)["odin_user_log_var_watertype_id"] == 4
+
+
+def test_bundled_vars():
+    from divebridge.ssi.vars import VarIndex, bundled_vars
+
+    t = bundled_vars()
+    assert t["watertype"] == {4: "fresh", 5: "salt"}
+    assert t["entry"][21] == "shore" and t["divetype"][23] == "education"
+    idx = VarIndex()  # offline -> bundled copy
+    assert ("boat", ) == tuple(n for i, n in idx.options("entry") if i == 22)

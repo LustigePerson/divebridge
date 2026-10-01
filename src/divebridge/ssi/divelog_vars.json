@@ -1,0 +1,259 @@
+{
+ "logbook_vars": {
+  "weather": {
+   "1": "sunny",
+   "2": "cloudy",
+   "3": "rainy",
+   "121": "snow"
+  },
+  "watertype": {
+   "4": "fresh",
+   "5": "salt"
+  },
+  "current": {
+   "6": "no_current",
+   "7": "light_current",
+   "8": "strong_current",
+   "9": "ripping_current"
+  },
+  "surface": {
+   "10": "calm",
+   "11": "moved",
+   "12": "stormy"
+  },
+  "water_body": {
+   "13": "ocean",
+   "14": "river",
+   "15": "quarry",
+   "16": "lake",
+   "17": "indoor",
+   "18": "artificial_lake",
+   "52": "pool",
+   "53": "confined",
+   "54": "openwater",
+   "84": "dry_land",
+   "123": "blue_hole",
+   "124": "cave",
+   "125": "cavern_cenote",
+   "140": "spring"
+  },
+  "tanktype": {
+   "19": "steel",
+   "20": "alu"
+  },
+  "entry": {
+   "21": "shore",
+   "22": "boat",
+   "35": "other"
+  },
+  "divetype": {
+   "23": "education",
+   "24": "fun",
+   "138": "scientific",
+   "139": "work"
+  },
+  "specialdive": {
+   "25": "boat",
+   "26": "buoyancy",
+   "27": "computer",
+   "28": "deep",
+   "29": "drift",
+   "30": "navigation",
+   "31": "dry",
+   "32": "photo",
+   "33": "equipment",
+   "37": "shark",
+   "38": "search",
+   "40": "night",
+   "43": "nitrox",
+   "45": "cave",
+   "47": "wreck",
+   "48": "snorkeling",
+   "122": "ice",
+   "126": "d_owd",
+   "127": "deco",
+   "137": "dpv",
+   "146": "dive_log_var_overhead",
+   "147": "dive_log_var_mine",
+   "148": "dive_log_var_coral",
+   "149": "dive_log_var_searchrecovery",
+   "150": "dive_log_var_stressrescue",
+   "151": "dive_log_var_manta",
+   "152": "dive_log_var_fish",
+   "153": "dive_log_var_classified",
+   "154": "dive_log_var_turtle",
+   "155": "dive_log_var_publicsafetydiving",
+   "156": "cleanup_dive",
+   "157": "dive_log_var_coralrestoration",
+   "158": "dive_log_var_invasivespecies",
+   "159": "sc-alt"
+  },
+  "specialdive_x": {
+   "41": "normal",
+   "42": "education"
+  },
+  "frd_divetype": {
+   "49": "training",
+   "50": "fun",
+   "51": "max",
+   "95": "competition"
+  },
+  "frddisc": {
+   "55": "STA",
+   "56": "STATT",
+   "57": "WAPN",
+   "58": "DNF",
+   "59": "DYN",
+   "60": "DYNTT",
+   "61": "FIM",
+   "62": "CWT",
+   "63": "CNF",
+   "64": "VWT",
+   "65": "FRC"
+  },
+  "xr_divetype": {
+   "66": "single",
+   "67": "double",
+   "68": "sidemount",
+   "141": "sidemount_single"
+  },
+  "ccr_divetype": {
+   "69": "scr",
+   "70": "ccr"
+  },
+  "xr_gear": {
+   "71": "wetnotes",
+   "72": "cutting_tool",
+   "73": "depth_timer_x2",
+   "74": "mask_x2",
+   "75": "smb",
+   "76": "spool",
+   "77": "reel"
+  },
+  "xr_ppo2": {
+   "78": "ppo2_11",
+   "79": "ppo2_12",
+   "80": "ppo2_13",
+   "81": "ppo2_14",
+   "82": "ppo2_15",
+   "83": "ppo2_16"
+  },
+  "suit": {
+   "85": "other",
+   "86": "shorty",
+   "87": "wetsuit",
+   "88": "semidry",
+   "89": "drysuit"
+  },
+  "xr_gas": {
+   "90": "air",
+   "91": "ean",
+   "92": "trimix"
+  },
+  "xr_gas_deco": {
+   "93": "ean",
+   "94": "trimix"
+  },
+  "scr_unit": {
+   "96": "scr_mares_horizon",
+   "97": "scr_draeger_dolphin",
+   "98": "scr_halycon_rb80",
+   "99": "scr_submatix_scr",
+   "100": "scr_hollis_explorer",
+   "128": "scr_other",
+   "135": "scr_kiss_sidekick",
+   "136": "scr_kiss_gem_scr"
+  },
+  "ccr_unit": {
+   "101": "ccr_revo_iii",
+   "102": "ccr_jj_ccr",
+   "103": "ccr_poseidon_mk_vi",
+   "104": "ccr_poseidon_se7en",
+   "105": "ccr_defender",
+   "106": "ccr_hammerhead",
+   "107": "ccr_inspiration_classic",
+   "108": "ccr_hollis_prism_2",
+   "109": "ccr_inspiration_evo",
+   "110": "ccr_inspiration_evp",
+   "111": "ccr_inspiration_xpd",
+   "112": "ccr_isc_megalodon",
+   "113": "ccr_isc_megalodon_15",
+   "114": "ccr_isc_pathfinder",
+   "115": "ccr_kiss_classic",
+   "116": "ccr_kiss_sidekick",
+   "117": "ccr_kiss_spirit_sidewinder",
+   "118": "ccr_kiss_sport",
+   "119": "ccr_liberty",
+   "120": "ccr_o2ptima_ccr",
+   "129": "ccr_other",
+   "130": "ccr_sf2",
+   "131": "ccr_sf2_sidemount",
+   "132": "ccr_triton",
+   "133": "ccr_vms_redbare",
+   "134": "ccr_xccr",
+   "160": "ccr_rd1"
+  },
+  "sport": {
+   "scuba": "scuba",
+   "frd": "frd",
+   "xr": "xr",
+   "scr": "scr",
+   "ccr": "ccr"
+  }
+ },
+ "divesite_vars": {
+  "level": {
+   "1": "beginner",
+   "2": "advanced",
+   "4": "expert"
+  },
+  "bow": {
+   "17": "artificial",
+   "18": "freshwater",
+   "19": "saltwater"
+  },
+  "wildlife": {
+   "23": "has_no_wildlife"
+  }
+ },
+ "divesite_extended_vars": {
+  "salt": {
+   "164": "wall_drop_off",
+   "230": "pinnacle",
+   "229": "blue_hole",
+   "165": "drift",
+   "166": "night",
+   "167": "macro",
+   "168": "cleaning_station",
+   "169": "wreck",
+   "287": "coral",
+   "170": "cavern_cave",
+   "171": "kelp",
+   "172": "artificial_reef",
+   "173": "snorkeling"
+  },
+  "fresh": {
+   "174": "wall_drop_off",
+   "175": "drift",
+   "176": "night",
+   "177": "macro",
+   "178": "wreck",
+   "179": "cavern_cave",
+   "180": "snorkeling",
+   "181": "pool",
+   "182": "aquarium",
+   "183": "altitude",
+   "184": "quarry",
+   "228": "spring",
+   "231": "cenote",
+   "185": "lake",
+   "186": "river",
+   "233": "mine"
+  },
+  "artificial": {
+   "187": "pool",
+   "188": "aquarium",
+   "189": "indoor_center"
+  }
+ }
+}

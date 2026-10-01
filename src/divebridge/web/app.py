@@ -24,7 +24,8 @@ from ..model import Dive
 from ..settings import Settings
 from ..ssi.client import APIError, SsiClient
 from ..ssi.dedup import find_existing
-from ..ssi.payload import VARS, DiveOptions
+from ..ssi.payload import DiveOptions
+from ..ssi.vars import GROUPS, MULTI_GROUPS, VarIndex
 from ..ssi.sites import SiteIndex, SiteMatch
 
 log = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ class AppState:
         self.password = settings.ssi_password
         self._client: SsiClient | None = None
         self._sites: SiteIndex | None = None
+        self._vars: VarIndex | None = None
         self.logbook: dict[str, Any] | None = None
         self.last_error: str | None = None
         settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -69,6 +71,11 @@ class AppState:
             self._client.close()
         self._client = None
         self.logbook = None
+
+    def vars(self) -> VarIndex:
+        if self._vars is None:
+            self._vars = VarIndex(self.settings.data_dir, self.client() if self.ssi_configured else None)
+        return self._vars
 
     def sites(self) -> SiteIndex:
         if self._sites is None:
@@ -111,7 +118,8 @@ def _root(request: Request) -> str:
 
 def render(request: Request, name: str, **ctx: Any) -> HTMLResponse:
     return templates.TemplateResponse(request, name, {
-        "root": _root(request), "state": state, "version": __version__, "vars": VARS, **ctx})
+        "root": _root(request), "state": state, "version": __version__,
+        "var_groups": GROUPS, "multi_groups": MULTI_GROUPS, "var_options": state.vars().options, **ctx})
 
 
 def _num(v: Any) -> float | None:
@@ -122,14 +130,25 @@ def _num(v: Any) -> float | None:
         return None
 
 
+def _id(v: Any) -> int | None:
+    s = str(v or "").strip()
+    return int(s) if s.isdigit() else None
+
+
 def _options_from_form(form: Any, suffix: str = "") -> DiveOptions:
     """Read the optional SSI fields (batch defaults: suffix "", per dive: suffix "_<i>")."""
     g = lambda k: form.get(f"o_{k}{suffix}")  # noqa: E731
     rating = _num(g("rating"))
     return DiveOptions(
-        divetype=str(g("divetype") or ("fun" if not suffix else "")),
-        watertype=str(g("watertype") or ("salt" if not suffix else "")),
-        tanktype=str(g("tanktype") or ("steel" if not suffix else "")),
+        divetype_id=_id(g("divetype")),
+        watertype_id=_id(g("watertype")),
+        tanktype_id=_id(g("tanktype")),
+        entry_id=_id(g("entry")),
+        water_body_id=_id(g("water_body")),
+        weather_id=_id(g("weather")),
+        surface_id=_id(g("surface")),
+        current_id=_id(g("current")),
+        specialdive_ids=[int(x) for x in form.getlist(f"o_specialdive{suffix}") if str(x).isdigit()],
         tank_volume_l=_num(g("tank_volume_l")),
         start_bar=_num(g("start_bar")),
         end_bar=_num(g("end_bar")),

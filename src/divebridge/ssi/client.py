@@ -133,6 +133,10 @@ class SsiClient:
     def get_user_data(self) -> dict[str, Any]:
         return self._with_token(lambda t: self._get("get_user_data", token=t))
 
+    def get_divelog_vars(self) -> dict[str, Any]:
+        """Variable definitions (weather, water type, entry, ... id -> name)."""
+        return self._with_token(lambda t: self._get("get_divelog_vars", token=t))
+
     def save_divelog(self, payload: dict[str, Any]) -> Any:
         return self._with_token(lambda t: self._post("save_divelog", payload, token=t))
 
