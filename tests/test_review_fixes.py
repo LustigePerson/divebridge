@@ -154,3 +154,11 @@ def test_upload_stored_is_ok(sample_dives):
 
     res = push_dives(GoodClient(), sample_dives, {}, dry_run=False)
     assert res[0].status == "uploaded" and "read back" in res[0].message
+
+
+def test_client_uses_app_user_agent():
+    """SSI stores writes only with the MySSI app's (Dart) User-Agent since 2026-10-07."""
+    from divebridge.ssi.client import USER_AGENT, SsiClient
+
+    c = SsiClient("a@b.c", "x")
+    assert c._http.headers["user-agent"] == USER_AGENT == "Dart/3.12 (dart:io)"

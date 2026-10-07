@@ -105,6 +105,10 @@ The device reports its platform name (`SKIFF`); it is mapped to the product name
 Uploaded dives are read back and compared field by field (`ssi-verify`, also automatic after upload).
 Known facts and quirks:
 
+- Since 2026-10-07 SSI stores `save_divelog` only when the request carries the MySSI app's
+  User-Agent (`Dart/3.12 (dart:io)`, the app is a Flutter/dio app); other clients get a success
+  stub with a random id and nothing is stored. The client sends that User-Agent, and every upload
+  is verified by reading the logbook back – an upload that is not found is reported as an error.
 - Surface interval (`si_before`) is in **seconds**; MySSI shows it as hh:mm.
 - Water type ids: 5 = salt, 4 = fresh (the reference project had this the other way round).
   Default "auto" takes it from the chosen SSI dive site.

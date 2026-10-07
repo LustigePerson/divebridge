@@ -1,6 +1,6 @@
 [project]
 name = "divebridge"
-version = "0.1.13"
+version = "0.1.14"
 description = "Bring dive computer exports (Cressi DiveSync) into the SSI logbook and UDDF – Home Assistant add-on"
 readme = "README.md"
 authors = [

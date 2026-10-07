@@ -27,6 +27,11 @@ DEFAULT_PARAMS = {
     "version": "ADR_4.1.268-ssi",
     "context": "s",
 }
+# The MySSI app is a Flutter app using dio on dart:io, whose default User-Agent is
+# "Dart/<sdk> (dart:io)". Since 2026-10-07 the backend accepts writes (save_divelog) only with
+# this User-Agent: other clients get {"success": {"ok": "added to Log", ...}} and nothing is
+# stored. Reads work regardless. SDK version taken from the app binary (3.12.2).
+USER_AGENT = "Dart/3.12 (dart:io)"
 SITES_CACHE_URL = f"{BASE_URL}/app/APP_CACHE_SITES.zip"
 
 
@@ -43,7 +48,8 @@ class SsiClient:
         self.password = password
         self.data_dir = data_dir
         self._token = token
-        self._http = httpx.Client(base_url=BASE_URL, params=DEFAULT_PARAMS, timeout=timeout)
+        self._http = httpx.Client(base_url=BASE_URL, params=DEFAULT_PARAMS, timeout=timeout,
+                                  headers={"User-Agent": USER_AGENT})
         if self._token is None and data_dir is not None:
             self._token = self._load_cached_token()
 
