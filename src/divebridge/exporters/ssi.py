@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -14,6 +15,14 @@ from ..ssi.payload import DiveOptions, build_payload
 from ..ssi.verify import FieldDiff, compare
 
 log = logging.getLogger(__name__)
+
+
+def _short(resp: Any) -> str:
+    try:
+        s = json.dumps(resp, separators=(",", ":"))
+    except (TypeError, ValueError):
+        s = str(resp)
+    return s[:160] + ("…" if len(s) > 160 else "")
 
 
 @dataclass
@@ -87,19 +96,29 @@ def push_dives(client: SsiClient, dives: list[Dive], site_ids: dict[int, int | N
         details.append({"odin_user_log_nr": nr, "odin_user_log_divecomputer_dive_ref": dive.dive_ref,
                         "odin_user_log_date": f"{dive.start:%Y-%m-%d}", "odin_user_log_entry_time": f"{dive.start:%H:%M}"})
         nr += 1
-    # round-trip check: read the logbook back and compare every uploaded dive
+    # round-trip check: read the logbook back and compare every uploaded dive. SSI's answer to
+    # save_divelog is not trustworthy on its own: since 2026-10-07 it returns
+    # {"success": {"ok": "added to Log", ...}} with a random id while storing nothing. Only a dive
+    # that is actually in the logbook counts as uploaded.
     if not dry_run and any(r.status == "uploaded" for r in results):
         try:
             fresh = client.get_divelog().get("logbook_details", [])
         except Exception as e:  # noqa: BLE001
             log.warning("read-back failed: %s", e)
-            fresh = []
+            fresh = None
         for r in results:
             if r.status != "uploaded" or not r.payload:
                 continue
+            if fresh is None:
+                r.status = "error"
+                r.message = "sent, but the logbook could not be read back to confirm – check in the MySSI app"
+                continue
             r.stored = find_existing(r.dive, fresh)
             if r.stored is None:
-                r.message += " – NOT found in logbook on read-back!"
+                r.status = "error"
+                r.message = ("SSI acknowledged the upload but the dive is NOT in the logbook "
+                             f"(response: {_short(r.response)}) – nothing was stored")
+                log.error("save_divelog accepted but dive not stored: %s | response %s", r.dive.summary(), _short(r.response))
                 continue
             r.diffs = compare(r.payload, r.stored)
             bad = [d for d in r.diffs if not d.ok]

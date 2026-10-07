@@ -122,3 +122,35 @@ def test_resample_matches_sample_grid(sample_dives):
     assert len(s) == 265 and s[0]["d"] == 2.8 and s[-1]["t"] == 1318000
     assert s[-1]["d"] == 1.0 and s[-1]["mf"] & FLAG_SURFACED
     assert all(x["te"] != 0 for x in s)
+
+
+def test_upload_not_stored_is_an_error(sample_dives):
+    """SSI may answer save_divelog with a success stub and store nothing (seen 2026-10-07)."""
+    from divebridge.exporters.ssi import push_dives
+
+    class StubClient:
+        def get_divelog(self):
+            return {"logbook_details": []}   # never contains the dive
+
+        def save_divelog(self, payload):
+            return {"success": {"ok": "added to Log", "error": "", "temp_id": "", "odin_user_log_id": 999909158}}
+
+    res = push_dives(StubClient(), sample_dives, {}, dry_run=False)
+    assert res[0].status == "error"
+    assert "NOT in the logbook" in res[0].message and "added to Log" in res[0].message
+
+
+def test_upload_stored_is_ok(sample_dives):
+    from divebridge.exporters.ssi import push_dives
+    from divebridge.ssi.payload import build_payload
+
+    class GoodClient:
+        def __init__(self): self.stored = []
+        def get_divelog(self):
+            return {"logbook_details": self.stored}
+        def save_divelog(self, payload):
+            self.stored.append(dict(payload, odin_user_log_date=payload["odin_user_log_date"]))
+            return dict(payload)
+
+    res = push_dives(GoodClient(), sample_dives, {}, dry_run=False)
+    assert res[0].status == "uploaded" and "read back" in res[0].message
