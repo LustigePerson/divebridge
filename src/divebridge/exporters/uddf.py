@@ -52,8 +52,9 @@ def dives_to_uddf(dives: list[Dive], owner_name: str | None = None) -> bytes:
             dc = _sub(equipment, "divecomputer", id=cid)
             _sub(dc, "name", d.computer.display_name)
             _sub(dc, "model", d.computer.model)
-            man = _sub(dc, "manufacturer")
-            _sub(man, "name", d.computer.manufacturer)
+            if d.computer.manufacturer:
+                man = _sub(dc, "manufacturer")
+                _sub(man, "name", d.computer.manufacturer)
             if d.computer.serial:
                 _sub(dc, "serialnumber", d.computer.serial)
 

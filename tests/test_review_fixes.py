@@ -115,6 +115,10 @@ def test_site_cache_survives_failed_refresh(tmp_path, monkeypatch):
 def test_resample_matches_sample_grid(sample_dives):
     from divebridge.ssi.payload import resample
 
+    from divebridge.ssi.payload import FLAG_SURFACED
+
     s = resample(sample_dives[0])
-    assert len(s) == 264 and s[0]["d"] == 2.8 and s[-1]["t"] == 1315000
+    # demo dive ends at 1318 s / 1.0 m (= surface threshold): last point is the last sample, no extra point
+    assert len(s) == 265 and s[0]["d"] == 2.8 and s[-1]["t"] == 1318000
+    assert s[-1]["d"] == 1.0 and s[-1]["mf"] & FLAG_SURFACED
     assert all(x["te"] != 0 for x in s)

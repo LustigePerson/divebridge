@@ -26,6 +26,7 @@ def test_uddf_structure(sample_dives):
     assert root.find("u:divesite/u:site/u:name", NS).text == "Monterey"
     assert root.find("u:gasdefinitions/u:mix/u:o2", NS).text == "0.210"
     assert root.find("u:diver/u:owner/u:equipment/u:divecomputer/u:serialnumber", NS).text == "000002"
+    assert root.find("u:diver/u:owner/u:equipment/u:divecomputer/u:name", NS).text == "XS Scuba Skiff"
 
 
 def test_uddf_filename(sample_dives):

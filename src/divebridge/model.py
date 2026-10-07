@@ -62,7 +62,7 @@ class DiveComputer:
 
     @property
     def display_name(self) -> str:
-        return f"{self.manufacturer} {self.model}".strip()
+        return " ".join(x for x in (self.manufacturer, self.model) if x)
 
     @property
     def ref(self) -> str:

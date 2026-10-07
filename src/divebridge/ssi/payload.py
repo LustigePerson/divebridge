@@ -107,19 +107,32 @@ class _Cursor:
         return ts[self.ti].temp_c
 
 
+SURFACE_M = 1.0
+
+
 def resample(dive: Dive, interval_s: int = SAMPLE_INTERVAL_S) -> list[dict[str, Any]]:
-    """Fixed-interval samples in the SSI `diveSamples` shape."""
+    """Fixed-interval samples in the SSI `diveSamples` shape.
+
+    The grid ends at the last recorded sample, like the DiveSync app's own chart – the Cressi
+    Da Vinci records points only under water, so a dive with surface phases has a profile shorter
+    than its dive time. If the last point is still under water, one surface point is appended so
+    viewers draw the final ascent (the dive time itself is sent separately)."""
     src = dive.samples
     if not src:
         return []
     cur = _Cursor(src)
     out: list[dict[str, Any]] = []
-    t_end = max(dive.duration_s, int(src[-1].t_s))
+    t_end = int(src[-1].t_s)
     at_depth = False
     n = 1
-    for t in range(0, t_end + 1, interval_s):
+    grid = list(range(0, t_end + 1, interval_s))
+    if grid[-1] != t_end:
+        grid.append(t_end)  # the last recorded point itself ends the profile
+    if src[-1].depth_m > SURFACE_M:
+        grid.append(t_end + interval_s)  # synthetic surface point
+    for t in grid:
         depth, near = cur.at(float(t))
-        depth = round(depth, 2)
+        depth = 0.0 if t > t_end else round(depth, 2)  # the appended point is at the surface
         # temperature: nearest sample that has one
         temp = near.temp_c
         if temp is None:
@@ -282,7 +295,7 @@ def build_payload(dive: Dive, log_nr: int, site_id: int | None,
         "odin_user_log_divecomputer_serial_nr": comp.serial if comp else None,
         "odin_user_log_divecomputer_ble_id": None,
         "odin_user_log_divecomputer_firmware": (comp.firmware if comp else None) or "",
-        "odin_user_log_divecomputer_manufacturer": comp.manufacturer if comp else None,
+        "odin_user_log_divecomputer_manufacturer": (comp.manufacturer or None) if comp else None,
         "odin_user_log_divecomputer_ref": comp.ref if comp else None,
         "odin_user_log_divecomputer_dive_ref": dive.dive_ref,
         "odin_user_log_divecomputer_imported": bool(opt.mark_imported),

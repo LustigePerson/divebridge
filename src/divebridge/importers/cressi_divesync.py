@@ -24,11 +24,13 @@ from .base import ImportError_
 
 FORMAT = "cressi_divesync"
 
-# DiveSync reports the hardware platform name; map it to the marketed product.
-DEVICE_NAMES = {
-    "SKIFF": "Da Vinci",
+# DiveSync reports the device family name; map it to manufacturer and marketed product.
+# Verified with a real export 2026-10-07: the Cressi Da Vinci reports "DAVINCI".
+DEVICES: dict[str, tuple[str, str]] = {
+    "DAVINCI": ("Cressi", "Da Vinci"),
+    "SKIFF": ("XS Scuba", "Skiff"),  # the app's demo export
 }
-MANUFACTURER = "Cressi"
+NO_SITE = {"", "-", "--", "---"}  # DiveSync writes "---" when no dive spot is set
 
 DATE_FORMATS = (
     "%m/%d/%Y %H:%M:%S",
@@ -54,15 +56,14 @@ def _sheet_rows(ws) -> list[dict[str, Any]]:
     return out
 
 
-def _parse_datetime(value: Any, date_format_hint: int | None) -> datetime:
+def _parse_datetime(value: Any) -> datetime:
+    """The export always writes MM/DD/YYYY regardless of the DateFormat setting (verified with a
+    real export that had DateFormat=1 and a date of 10/07/2026 = 7 October, matching the file name
+    and the app). Other formats are only fallbacks for a changed export."""
     if isinstance(value, datetime):
         return value
     s = str(value).strip()
-    formats = list(DATE_FORMATS)
-    if date_format_hint == 1:  # assume 1 = DMY; untested – try it before the MDY default
-        formats.remove("%d/%m/%Y %H:%M:%S")
-        formats.insert(0, "%d/%m/%Y %H:%M:%S")
-    for fmt in formats:
+    for fmt in DATE_FORMATS:
         try:
             return datetime.strptime(s, fmt)
         except ValueError:
@@ -75,9 +76,8 @@ class CressiDiveSyncImporter:
     description = "Cressi DiveSync app – Excel export (DiveLog/DiveProfile/TankData)"
     extensions = (".xlsx",)
 
-    def __init__(self, manufacturer: str = MANUFACTURER, device_names: dict[str, str] | None = None):
-        self.manufacturer = manufacturer
-        self.device_names = device_names or DEVICE_NAMES
+    def __init__(self, devices: dict[str, tuple[str, str]] | None = None):
+        self.devices = devices or DEVICES
 
     # -- detection ---------------------------------------------------------
     def can_handle(self, filename: str, data: bytes) -> bool:
@@ -132,7 +132,7 @@ class CressiDiveSyncImporter:
     def _dive(self, filename: str, row: dict[str, Any], profile: list[dict[str, Any]],
               tank_rows: list[dict[str, Any]], meta: dict[str, Any]) -> Dive:
         dive_id = str(to_int(row.get("DiveID")))
-        start = _parse_datetime(row.get("DiveStartLocalTime"), to_int(row.get("DateFormat")))
+        start = _parse_datetime(row.get("DiveStartLocalTime"))
 
         # gases: 7 mix slots, the one in use is StartingMixIdx (1-based)
         mixes: list[Gas] = []
@@ -184,10 +184,10 @@ class CressiDiveSyncImporter:
         start_psi = u16_or_none(row.get("StartDiveTankPressurePSI"))
         end_psi = u16_or_none(row.get("EndDiveTankPressurePSI"))
         for tr in sorted(tank_rows, key=lambda x: to_int(x.get("TankNo")) or 0):
-            vol = to_float(tr.get("CylinderSize"))
-            wp = to_float(tr.get("WorkingPressure"))
-            sp = u16_or_none(tr.get("StartPressure"))
-            ep = u16_or_none(tr.get("EndPressure"))
+            vol = to_float(tr.get("CylinderSize")) or None
+            wp = to_float(tr.get("WorkingPressure")) or None
+            sp = u16_or_none(tr.get("StartPressure")) or None  # 0.0 = not entered (real export)
+            ep = u16_or_none(tr.get("EndPressure")) or None
             if vol is None and sp is None and ep is None:
                 continue
             unit = to_int(tr.get("TankUnit")) or 0  # 0 = imperial (cuft/psi) assumed, 1 = metric (l/bar)
@@ -231,13 +231,10 @@ class CressiDiveSyncImporter:
 
         device = str(row.get("DeviceName") or "").strip() or "Unknown"
         serial = str(row.get("SerialNo") or "").strip() or None
-        computer = DiveComputer(
-            manufacturer=self.manufacturer,
-            model=self.device_names.get(device.upper(), device),
-            serial=serial,
-            firmware=None,
-        )
-        site_name = str(row.get("DiveSiteName") or "").strip() or None
+        manufacturer, model = self.devices.get(device.upper(), ("", device))  # unknown: name as reported
+        computer = DiveComputer(manufacturer=manufacturer, model=model, serial=serial, firmware=None)
+        site_name = str(row.get("DiveSiteName") or "").strip()
+        site_name = None if site_name in NO_SITE else site_name
         memo = str(row.get("Memo") or "").strip() or None
 
         return Dive(

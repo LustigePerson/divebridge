@@ -29,11 +29,11 @@ def test_payload_values(sample_dives):
     assert p["odin_user_log_watertemp_c"] == 20.7
     assert p["odin_user_log_watertemp_max_c"] == 23.9
     assert p["odin_user_log_ean"] is None
-    assert p["odin_user_log_divecomputer_manufacturer"] == "Cressi"
-    assert p["odin_user_log_divecomputer_name"] == "Cressi Da Vinci"
+    assert p["odin_user_log_divecomputer_manufacturer"] == "XS Scuba"
+    assert p["odin_user_log_divecomputer_name"] == "XS Scuba Skiff"
     assert p["odin_user_log_diveComputer"] == ""  # shown as partner/center text by the app
     assert p["odin_user_log_divecomputer_imported"] is True  # app shows computer icon + field
-    assert p["odin_user_log_divecomputer_ref"] == "Cressi Da Vinci_000002"
+    assert p["odin_user_log_divecomputer_ref"] == "XS Scuba Skiff_000002"
     assert p["odin_user_log_divecomputer_dive_ref"] == "2025-10-15T02:56:07"
     assert p["odin_user_log_tankPressureDataset"] is None
     assert p["odin_user_log_si_before"] == 445  # seconds
@@ -41,7 +41,7 @@ def test_payload_values(sample_dives):
     assert p["odin_user_log_var_divetype_id"] == 24 and p["odin_user_log_var_tanktype_id"] == 19
     depths = json.loads(p["odin_user_log_depthDataset"])
     samples = json.loads(p["odin_user_log_diveSamples"])
-    assert len(depths) == len(samples) == 264
+    assert len(depths) == len(samples) == 265
     assert samples[0]["t"] == 0 and samples[1]["t"] == 5000
     assert set(samples[0]) == {"a", "d", "dr", "gs", "mf", "n", "ndl", "o", "s", "t", "te"}
     assert max(s["d"] for s in samples) == 38.0
@@ -97,3 +97,28 @@ def test_bundled_vars():
     assert t["entry"][21] == "shore" and t["divetype"][23] == "education"
     idx = VarIndex()  # offline -> bundled copy
     assert ("boat", ) == tuple(n for i, n in idx.options("entry") if i == 22)
+
+
+def test_resample_ends_at_last_sample_with_surface_point():
+    from pathlib import Path
+
+    from divebridge.importers import parse_file
+    from divebridge.ssi.payload import FLAG_SURFACED, resample
+
+    f = Path(__file__).parent / "data" / "cressi" / "DAVINCI_002001_10_07_2026_135139.xlsx"
+    d = parse_file(f.name, f.read_bytes())[0]
+    s = resample(d)
+    assert d.duration_s == 887 and s[-2]["t"] == 346000 and s[-1]["t"] == 351000
+    assert s[-2]["d"] == 2.5 and s[-1]["d"] == 0.0 and s[-1]["mf"] & FLAG_SURFACED
+    p = build_payload(d, 1, None)
+    assert p["odin_user_log_divetime"] == 14.8 and p["odin_user_log_divecomputer_name"] == "Cressi Da Vinci"
+
+
+def test_unknown_device_name_kept_as_is():
+    from divebridge.importers.cressi_divesync import CressiDiveSyncImporter
+
+    row = {"DiveID": 1, "DiveStartLocalTime": "10/15/2025 02:56:07", "TotalDiveTime": 60, "MaxDepthFT": 10,
+           "DeviceName": "GRAVITON", "SerialNo": "7", "StartingMixIdx": 1, "Mix1Fo2Percent": 21}
+    d = CressiDiveSyncImporter()._dive("f.xlsx", row, [], [], {})
+    assert d.computer.display_name == "GRAVITON" and d.computer.manufacturer == ""
+    assert build_payload(d, 1, None)["odin_user_log_divecomputer_manufacturer"] is None

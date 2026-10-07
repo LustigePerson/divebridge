@@ -20,8 +20,8 @@ def test_parse_summary(sample_dives):
     assert d.water_temp_min_c == 20.7
     assert d.water_temp_max_c == 23.9
     assert d.site.name == "Monterey"
-    assert d.computer.manufacturer == "Cressi"
-    assert d.computer.model == "Da Vinci"
+    assert d.computer.manufacturer == "XS Scuba"
+    assert d.computer.model == "Skiff"
     assert d.computer.serial == "000002"
     assert d.primary_gas.is_air
     assert d.tanks == []  # 65535 sentinel = no transmitter
@@ -68,3 +68,19 @@ def test_parse_other_exports():
     # one physical computer, three distinct dive refs
     assert len({d.computer.ref for d in got.values()}) == 1
     assert len({d.dive_ref for d in got.values()}) == 3
+
+
+def test_real_da_vinci_pool_dive():
+    """First real export (pool, 2026-10-07): DateFormat=1 but MM/DD/YYYY, no site ("---"),
+    tank pressures 0.0 = not entered, device DAVINCI."""
+    from pathlib import Path
+
+    f = Path(__file__).parent / "data" / "cressi" / "DAVINCI_002001_10_07_2026_135139.xlsx"
+    d = parse_file(f.name, f.read_bytes())[0]
+    assert d.start.isoformat() == "2026-10-07T13:51:39"  # not 10 July
+    assert d.computer.manufacturer == "Cressi" and d.computer.model == "Da Vinci" and d.computer.serial == "002001"
+    assert d.site is None
+    assert d.tanks == [] and d.start_pressure_bar is None
+    assert d.duration_s == 887 and len(d.samples) == 6 and d.samples[-1].t_s == 346
+    assert d.gf_low == 34 and d.gf_high == 84
+    assert d.surface_interval_s == 4929

@@ -110,6 +110,9 @@ Known facts and quirks:
 - Gradient factors are sent as the export reports them (e.g. 89/89) even though DiveSync displays
   the conservatism preset as "C0 90/90". The export has no column for the preset.
 - Memo from DiveSync becomes the SSI note; UI notes are appended.
+- The Da Vinci records profile points only under water; the SSI profile ends at the last recorded
+  point (as in the DiveSync app) plus one surface point if the last point is still under water.
+  The dive time is sent separately and may be longer than the profile.
 - Dive time is stored as whole minutes (22.6 -> 23); the serial number loses leading zeros.
 - `odin_user_log_divecomputer_imported: true` makes the app show a computer icon and a "dive computer"
   field (the reference sends false). Default on, switchable in the UI / `--no-imported-flag`.
@@ -137,6 +140,9 @@ Open:
 
 - [ ] First export from a real Cressi Da Vinci: date format with non-US settings, memo, nitrox,
       several dives in one file, device name (currently `SKIFF` is mapped to "Da Vinci").
+- [ ] Surface interval: DiveSync's `SurfTime` before the *first* dive of a day is the time since the
+      computer was switched on (82 min observed for a first pool dive), not a real surface interval.
+      Observe with real dives first; possibly a bug report to the app vendor, or a UI override.
 - [ ] Verify dive site mapping with real dives; use GPS from the export (`GPSStartDive`) for the
       nearest-site lookup once a real export shows the coordinate format.
 - [ ] Companion app: once [home-assistant/android#7549](https://github.com/home-assistant/android/pull/7549)
