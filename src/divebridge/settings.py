@@ -15,6 +15,7 @@ class Settings:
     ssi_password: str | None
     ingress_only: bool  # accept only requests from the HA ingress proxy
     port: int
+    dry_run_default: bool  # whether the "dry run" box is ticked by default on the review page
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -27,4 +28,5 @@ class Settings:
             ssi_password=os.environ.get("SSI_PASSWORD") or None,
             ingress_only=os.environ.get("DIVEBRIDGE_INGRESS_ONLY", "0") in ("1", "true", "yes"),
             port=int(os.environ.get("DIVEBRIDGE_PORT", "8099")),
+            dry_run_default=os.environ.get("DIVEBRIDGE_DRY_RUN_DEFAULT", "0") in ("1", "true", "yes"),
         )

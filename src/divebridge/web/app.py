@@ -60,6 +60,7 @@ class Batch:
     site_suggestions: dict[int, SiteMatch | None] = field(default_factory=dict)
     existing: dict[int, dict[str, Any] | None] = field(default_factory=dict)
     results: list[PushResult] | None = None
+    form: dict[str, list[str]] | None = None  # last submitted review form, used to prefill the page
 
 
 class AppState:
@@ -337,12 +338,39 @@ def _enrich(batch: Batch) -> None:
                 log.warning("site lookup failed: %s", e)
 
 
+def _remember_form(batch: Batch, form: Any) -> None:
+    batch.form = {k: [str(v) for v in form.getlist(k)] for k in form.keys()}
+
+
+def _prefill(batch: Batch) -> dict[str, Any]:
+    """Template helpers: values/checks from the last submitted form, else the given defaults."""
+    prev = batch.form
+
+    def fval(name: str, default: str = "") -> str:
+        return prev[name][0] if prev is not None and name in prev and prev[name] else (default if prev is None else "")
+
+    def fchecked(name: str, value: str, default: bool = False) -> bool:
+        return (value in prev.get(name, [])) if prev is not None else default
+
+    # site chosen last time (may differ from the suggestion): label for the select
+    chosen: dict[int, Any] = {}
+    if prev is not None and state.ssi_configured:
+        for i in range(len(batch.dives)):
+            raw = fval(f"site_id_{i}")
+            if raw.isdigit():
+                try:
+                    chosen[i] = state.sites().get(int(raw))
+                except Exception:  # noqa: BLE001
+                    pass
+    return {"fval": fval, "fchecked": fchecked, "has_prev": prev is not None, "chosen_sites": chosen}
+
+
 @app.get("/batch/{bid}", response_class=HTMLResponse)
 def batch_page(request: Request, bid: str):
     batch = state.batches.get(bid)
     if batch is None:
         return RedirectResponse(url=f"{_root(request)}/", status_code=303)
-    return render(request, "batch.html", batch=batch, dive_facts=dive_facts)
+    return render(request, "batch.html", batch=batch, dive_facts=dive_facts, **_prefill(batch))
 
 
 def _uddf_extras_from_form(form: Any, dives: list[Dive], indices: list[int]) -> dict[int, UddfExtras]:
@@ -377,6 +405,7 @@ async def batch_uddf(request: Request, bid: str):
     extras: dict[int, UddfExtras] = {}
     if request.method == "POST":
         form = await request.form()
+        _remember_form(batch, form)
         selected = [int(x) for x in form.getlist("selected") if str(x).isdigit()]
         if selected:
             indices = selected
@@ -409,6 +438,7 @@ async def batch_ssi(request: Request, bid: str):
     if batch is None:
         return RedirectResponse(url=f"{_root(request)}/", status_code=303)
     form = await request.form()
+    _remember_form(batch, form)
     dry_run = form.get("dry_run") == "1"
     selected = [int(x) for x in form.getlist("selected")]
     site_ids: dict[int, int | None] = {}

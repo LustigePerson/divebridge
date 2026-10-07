@@ -97,6 +97,14 @@ def test_push_with_options_dry_run(sample_bytes, monkeypatch):
                                           "site_id_0": "441938",
                                           "o_buddy": "77", "o_notes": "test"})
     assert r.status_code == 200 and "dry-run" in r.text
+    # the review page is prefilled with the last submitted form
+    page = c.get(f"/batch/{bid}").text
+    assert 'name="o_weight_kg" value="6,5"' in page
+    assert 'name="o_notes" value="test"' in page
+    assert 'name="o_buddy" value="77" checked' in page
+    assert 'name="dry_run" value="1" checked' in page
+    assert 'value="22" selected' in page.split('name="o_entry"')[1].split("</select>")[0]
+    assert 'value="441938" selected' in page and "Blue Hole" in page
     # UDDF via POST carries the form's buddy, site and notes; GET stays plain
     u = c.post(f"/batch/{bid}/uddf", data={"selected": "0", "same_for_all": "1", "o_buddy": "77",
                                            "o_notes": "test", "site_id_0": "441938"})
@@ -165,3 +173,10 @@ def test_map_tiles_send_referrer(sample_bytes):
     assert "tile.openstreetmap.org/{z}/{x}/{y}.png" in r.text
     assert "referrerPolicy: 'origin'" in r.text
     assert "cartocdn" not in r.text
+
+
+def test_dry_run_default_off(sample_bytes):
+    c = TestClient(app)
+    r = c.post("/upload", files=[("files", ("s.xlsx", sample_bytes, "application/octet-stream"))], follow_redirects=True)
+    assert 'name="dry_run" value="1" checked' not in r.text   # default off, configurable via dry_run_default
+    assert 'name="dry_run" value="1" >' in r.text or 'name="dry_run" value="1">' in r.text

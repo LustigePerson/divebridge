@@ -24,31 +24,33 @@
   {% if group in multi_groups %}
   <div class="group">{{ title }}
     <div class="checks">
-      {% for vid, vname in var_options(group) %}<label><input type="checkbox" name="o_{{ group }}{{ sfx }}" value="{{ vid }}">{{ vname }}</label>{% endfor %}
+      {% for vid, vname in var_options(group) %}<label><input type="checkbox" name="o_{{ group }}{{ sfx }}" value="{{ vid }}" {% if fchecked('o_' ~ group ~ sfx, vid|string) %}checked{% endif %}>{{ vname }}</label>{% endfor %}
     </div>
   </div>
   {% else %}
+  {% set default_id = '' if is_override else ('24' if group == 'divetype' else ('19' if group == 'tanktype' else '')) %}
+  {% set cur = fval('o_' ~ group ~ sfx, default_id) %}
   <label>{{ title }}
     <select name="o_{{ group }}{{ sfx }}">
       <option value="">{% if is_override %}{{ e }}{% elif group == 'watertype' %}auto (from dive site){% else %}—{% endif %}</option>
-      {% for vid, vname in var_options(group) %}<option value="{{ vid }}" {% if not is_override and ((group == 'divetype' and vid == 24) or (group == 'tanktype' and vid == 19)) %}selected{% endif %}>{{ vname }}</option>{% endfor %}
+      {% for vid, vname in var_options(group) %}<option value="{{ vid }}" {% if cur == vid|string %}selected{% endif %}>{{ vname }}</option>{% endfor %}
     </select>
   </label>
   {% endif %}
   {% endfor %}
-  <label>Tank volume (l)<input type="text" inputmode="decimal" name="o_tank_volume_l{{ sfx }}" placeholder="{{ e or '12' }}"></label>
+  <label>Tank volume (l)<input type="text" inputmode="decimal" name="o_tank_volume_l{{ sfx }}" value="{{ fval('o_tank_volume_l' ~ sfx) }}" placeholder="{{ e or '12' }}"></label>
   <label>Start / end pressure (bar)
-    <span class="row" style="gap:4px"><input type="text" inputmode="decimal" name="o_start_bar{{ sfx }}" placeholder="{{ e or '200' }}" style="width:48%"><input type="text" inputmode="decimal" name="o_end_bar{{ sfx }}" placeholder="{{ e or '50' }}" style="width:48%"></span></label>
-  <label>Weight (kg)<input type="text" inputmode="decimal" name="o_weight_kg{{ sfx }}" placeholder="{{ e }}"></label>
-  <label>Visibility (m)<input type="text" inputmode="decimal" name="o_visibility_m{{ sfx }}" placeholder="{{ e }}"></label>
-  <label>Air temp (°C)<input type="text" inputmode="decimal" name="o_air_temp_c{{ sfx }}" placeholder="{{ e }}"></label>
-  <label>Rating (1-5)<input type="text" inputmode="numeric" name="o_rating{{ sfx }}" placeholder="{{ e }}"></label>
+    <span class="row" style="gap:4px"><input type="text" inputmode="decimal" name="o_start_bar{{ sfx }}" value="{{ fval('o_start_bar' ~ sfx) }}" placeholder="{{ e or '200' }}" style="width:48%"><input type="text" inputmode="decimal" name="o_end_bar{{ sfx }}" value="{{ fval('o_end_bar' ~ sfx) }}" placeholder="{{ e or '50' }}" style="width:48%"></span></label>
+  <label>Weight (kg)<input type="text" inputmode="decimal" name="o_weight_kg{{ sfx }}" value="{{ fval('o_weight_kg' ~ sfx) }}" placeholder="{{ e }}"></label>
+  <label>Visibility (m)<input type="text" inputmode="decimal" name="o_visibility_m{{ sfx }}" value="{{ fval('o_visibility_m' ~ sfx) }}" placeholder="{{ e }}"></label>
+  <label>Air temp (°C)<input type="text" inputmode="decimal" name="o_air_temp_c{{ sfx }}" value="{{ fval('o_air_temp_c' ~ sfx) }}" placeholder="{{ e }}"></label>
+  <label>Rating (1-5)<input type="text" inputmode="numeric" name="o_rating{{ sfx }}" value="{{ fval('o_rating' ~ sfx) }}" placeholder="{{ e }}"></label>
   <div class="group">Buddies
     <div class="checks">
-      {% for bid, bname in state.buddies() %}<label><input type="checkbox" name="o_buddy{{ sfx }}" value="{{ bid }}">{{ bname }}</label>{% else %}<span class="muted">(none in SSI logbook)</span>{% endfor %}
+      {% for bid, bname in state.buddies() %}<label><input type="checkbox" name="o_buddy{{ sfx }}" value="{{ bid }}" {% if fchecked('o_buddy' ~ sfx, bid|string) %}checked{% endif %}>{{ bname }}</label>{% else %}<span class="muted">(none in SSI logbook)</span>{% endfor %}
     </div>
   </div>
-  <label style="grid-column: 1 / -1">Notes (added to the computer's memo)<input type="text" name="o_notes{{ sfx }}" placeholder="{{ e }}"></label>
+  <label style="grid-column: 1 / -1">Notes (added to the computer's memo)<input type="text" name="o_notes{{ sfx }}" value="{{ fval('o_notes' ~ sfx) }}" placeholder="{{ e }}"></label>
 {% endmacro %}
 
 {% block content %}
@@ -85,16 +87,18 @@
     {% set ex = batch.existing.get(i) %}
     {% set sug = batch.site_suggestions.get(i) %}
     <tr>
-      <td><input type="checkbox" name="selected" value="{{ i }}" {% if not ex %}checked{% endif %}></td>
+      <td><input type="checkbox" name="selected" value="{{ i }}" {% if fchecked('selected', i|string, not ex) %}checked{% endif %}></td>
       <td>{{ d.start.strftime('%Y-%m-%d %H:%M') }} <button type="button" class="iconbtn info" data-i="{{ i }}" title="all data of this dive">ⓘ</button><br><span class="muted">#{{ d.number or '?' }} · {{ d.computer.display_name if d.computer else '' }}</span></td>
       <td>{{ d.duration_min }} min</td>
       <td>{{ '%.1f'|format(d.max_depth_m) }} m</td>
       <td class="hide-sm">{% if d.water_temp_min_c is not none %}{{ d.water_temp_min_c }} °C{% endif %}</td>
       <td>
-        <input type="text" class="sitesearch" data-i="{{ i }}" placeholder="search SSI site…" value="{{ d.site.name if d.site and d.site.name else '' }}" autocomplete="off">
+        {% set pick = chosen_sites.get(i) if has_prev else sug %}
+        <input type="text" class="sitesearch" data-i="{{ i }}" placeholder="search SSI site…" value="{{ fval('sitesearch_' ~ i, d.site.name if d.site and d.site.name else '') }}" autocomplete="off">
+        <input type="hidden" name="sitesearch_{{ i }}" class="sitesearchmirror" data-i="{{ i }}" value="{{ fval('sitesearch_' ~ i, d.site.name if d.site and d.site.name else '') }}">
         <select name="site_id_{{ i }}" id="site_{{ i }}" class="siteselect" data-i="{{ i }}">
           <option value="">— no site —</option>
-          {% if sug %}<option value="{{ sug.id }}" selected data-bow="{{ sug.bow or '' }}" data-lat="{{ sug.lat or '' }}" data-lon="{{ sug.lon or '' }}" data-name="{{ sug.name }}">{{ sug.label }}</option>{% endif %}
+          {% if pick %}<option value="{{ pick.id }}" selected data-bow="{{ pick.bow or '' }}" data-lat="{{ pick.lat or '' }}" data-lon="{{ pick.lon or '' }}" data-name="{{ pick.name }}">{{ pick.label }}</option>{% endif %}
         </select>
         <div class="sitemeta" id="meta_{{ i }}"></div>
         <button type="button" class="iconbtn mapbtn" data-i="{{ i }}">🗺 map</button>
@@ -116,15 +120,16 @@
   </table>
 
   <h2 style="margin-top:18px">Optional SSI details</h2>
-  <label><input type="checkbox" name="same_for_all" id="same_for_all" value="1" checked> same for all selected dives</label>
+  <label><input type="checkbox" name="same_for_all" id="same_for_all" value="1" {% if fchecked('same_for_all', '1', true) %}checked{% endif %}> same for all selected dives</label>
   <div class="grid" style="margin-top:8px">{{ fields("", false) }}</div>
 
   <div class="row" style="margin-top:14px">
     <button class="btn" type="submit" formaction="{{ root }}/batch/{{ batch.id }}/uddf" formmethod="post" formnovalidate title="selected dives, with buddies, site and notes from this form">⬇ Download UDDF</button>
-    <label><input type="checkbox" name="dry_run" value="1" checked> dry run (show payload, send nothing)</label>
-    <label><input type="checkbox" name="allow_duplicates" value="1"> allow duplicates</label>
-    <label><input type="checkbox" name="mark_imported_ui" value="1" checked onchange="document.getElementById('mark_imported').value = this.checked ? '1' : '0'"> mark as imported from dive computer (icon + computer field in the app)</label>
-    <input type="hidden" name="mark_imported" id="mark_imported" value="1">
+    <label><input type="checkbox" name="dry_run" value="1" {% if fchecked('dry_run', '1', state.settings.dry_run_default) %}checked{% endif %}> dry run (show payload, send nothing)</label>
+    <label><input type="checkbox" name="allow_duplicates" value="1" {% if fchecked('allow_duplicates', '1') %}checked{% endif %}> allow duplicates</label>
+    {% set imp = fval('mark_imported', '1') != '0' %}
+    <label><input type="checkbox" name="mark_imported_ui" value="1" {% if imp %}checked{% endif %} onchange="document.getElementById('mark_imported').value = this.checked ? '1' : '0'"> mark as imported from dive computer (icon + computer field in the app)</label>
+    <input type="hidden" name="mark_imported" id="mark_imported" value="{{ '1' if imp else '0' }}">
     <button class="primary" type="submit" {% if not state.ssi_configured %}disabled{% endif %}>⬆ Upload to SSI</button>
   </div>
   </form>
@@ -198,6 +203,7 @@ async function query(i, q) {
 let timer = null;
 document.querySelectorAll('.sitesearch').forEach(inp => {
   inp.addEventListener('input', () => {
+    const mirror = document.querySelector('.sitesearchmirror[data-i="' + inp.dataset.i + '"]'); if (mirror) mirror.value = inp.value;
     clearTimeout(timer);
     timer = setTimeout(() => { const q = inp.value.trim(); if (q.length >= 2 || (pos && !q)) query(inp.dataset.i, q); }, 300);
   });

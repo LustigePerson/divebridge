@@ -21,6 +21,7 @@ export DIVEBRIDGE_OUTPUT_DIR="$(opt output_dir /share/divebridge/uddf)"
 mkdir -p "$DIVEBRIDGE_OUTPUT_DIR" 2>/dev/null || true
 export DIVEBRIDGE_DATA_DIR="${DIVEBRIDGE_DATA_DIR:-/data/divebridge}"
 export DIVEBRIDGE_INGRESS_ONLY="${DIVEBRIDGE_INGRESS_ONLY:-1}"
+export DIVEBRIDGE_DRY_RUN_DEFAULT="$(opt dry_run_default false)"
 LOG_LEVEL="$(opt log_level info)"
 export DIVEBRIDGE_LOG_LEVEL="$LOG_LEVEL"
 

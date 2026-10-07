@@ -9,6 +9,7 @@ or push them to your SSI / MySSI logbook.
 |---|---|
 | `ssi_email` / `ssi_password` | MySSI login. Optional – you can also log in inside the UI (kept in memory only). |
 | `output_dir` | Where UDDF files are written in addition to the browser download. Default `/share/divebridge/uddf`. |
+| `dry_run_default` | Tick "dry run" by default on the review page (`false`). A dry run shows the SSI payload without sending. |
 | `log_level` | `debug`, `info`, `warning`, `error` |
 
 ## Usage
