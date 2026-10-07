@@ -143,8 +143,9 @@ Home Assistant and used from the companion app (single file / ZIP) and from the 
 
 Open:
 
-- [ ] First export from a real Cressi Da Vinci: date format with non-US settings, memo, nitrox,
-      several dives in one file, device name (currently `SKIFF` is mapped to "Da Vinci").
+- [x] First export from a real Cressi Da Vinci (pool dive, 2026-10-07): date format, device name
+      `DAVINCI`, empty site, tank data without values – all handled.
+- [ ] Real open-water dives: memo, nitrox, several dives in one export file, GPS fields.
 - [ ] Surface interval: DiveSync's `SurfTime` before the *first* dive of a day is the time since the
       computer was switched on (82 min observed for a first pool dive), not a real surface interval.
       Observe with real dives first; possibly a bug report to the app vendor, or a UI override.
@@ -157,7 +158,8 @@ Open:
 - [ ] SSI gear / equipment (`odin_user_log_gear`): needs the equipment list from the SSI profile
       (API call still to be found) and a multi-select in the UI.
 - [ ] Dive center field (`log_linked_facility_id`, centers come from `APP_CACHE_CENTER.zip`).
-- [ ] v2: push directly to divelogs.de (official REST API, `POST /api/dives`).
+- [ ] divelogs.de: check what its SSI import takes over (profile, temperature, buddies). If complete,
+      SSI stays the single source of truth and a direct push (v2 idea) is not needed.
 - [ ] More importers (UDDF/Subsurface as input, other apps).
 - [ ] Optional: contribute the DiveSync parser upstream to divessi-log-importer.
 
