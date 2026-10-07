@@ -227,11 +227,12 @@ function openMap(i) {
   modal.style.display = 'flex';
   if (!map) {
     map = L.map('map');
-    // OSM's own tile servers block use from apps/WebViews (tile usage policy); CARTO basemaps are
-    // free for light use and are what the Home Assistant map uses as well
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19, subdomains: 'abcd',
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    // OSM's tile usage policy requires a Referer; the page is served with Referrer-Policy: no-referrer
+    // (Home Assistant / reverse proxy), so without this option OSM returns its "policy" placeholder
+    // tile for every request (verified with curl: no Referer -> placeholder, Referer -> real tiles).
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, referrerPolicy: 'origin',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
     layer = L.layerGroup().addTo(map);
   }

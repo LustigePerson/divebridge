@@ -156,3 +156,12 @@ def test_no_store_header():
     c = TestClient(app)
     assert c.get("/").headers["cache-control"] == "no-store"
     assert c.get("/health").headers["cache-control"] == "no-store"
+
+
+def test_map_tiles_send_referrer(sample_bytes):
+    """OSM blocks tile requests without Referer; HA serves pages with Referrer-Policy: no-referrer."""
+    c = TestClient(app)
+    r = c.post("/upload", files=[("files", ("s.xlsx", sample_bytes, "application/octet-stream"))], follow_redirects=True)
+    assert "tile.openstreetmap.org/{z}/{x}/{y}.png" in r.text
+    assert "referrerPolicy: 'origin'" in r.text
+    assert "cartocdn" not in r.text
