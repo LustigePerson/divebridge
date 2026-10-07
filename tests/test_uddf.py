@@ -31,3 +31,26 @@ def test_uddf_structure(sample_dives):
 
 def test_uddf_filename(sample_dives):
     assert uddf_filename(sample_dives[0]) == "2025-10-15_0256_000002.uddf"
+
+
+def test_uddf_extras_buddies_site_notes(sample_dives):
+    from divebridge.exporters.uddf import UddfExtras
+
+    x = UddfExtras(buddies=[("Vicente", "Vicente Villalonga")], site_name="Monterey Bay", site_lat=36.6, site_lon=-121.9,
+                   notes="first dive")
+    root = ET.fromstring(dives_to_uddf(sample_dives, extras={0: x}))
+    buddy = root.find("u:diver/u:buddy", NS)
+    assert buddy.get("id") == "buddy_1"
+    assert buddy.find("u:personal/u:firstname", NS).text == "Vicente"
+    assert buddy.find("u:personal/u:lastname", NS).text == "Vicente Villalonga"
+    site = root.find("u:divesite/u:site", NS)
+    assert site.find("u:name", NS).text == "Monterey Bay"  # UI choice wins over "Monterey" from the export
+    assert site.find("u:geography/u:latitude", NS).text == "36.600000"
+    dive = root.find("u:profiledata/u:repetitiongroup/u:dive", NS)
+    refs = [l.get("ref") for l in dive.findall("u:informationbeforedive/u:link", NS)]
+    assert "buddy_1" in refs and "site_1" in refs
+    assert dive.find("u:informationafterdive/u:notes/u:para", NS).text == "first dive"
+    # without extras: no buddy element, export's own site name
+    root = ET.fromstring(dives_to_uddf(sample_dives))
+    assert root.find("u:diver/u:buddy", NS) is None
+    assert root.find("u:divesite/u:site/u:name", NS).text == "Monterey"

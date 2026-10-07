@@ -120,7 +120,7 @@
   <div class="grid" style="margin-top:8px">{{ fields("", false) }}</div>
 
   <div class="row" style="margin-top:14px">
-    <a class="btn" href="{{ root }}/batch/{{ batch.id }}/uddf">⬇ Download UDDF</a>
+    <button class="btn" type="submit" formaction="{{ root }}/batch/{{ batch.id }}/uddf" formmethod="post" formnovalidate title="selected dives, with buddies, site and notes from this form">⬇ Download UDDF</button>
     <label><input type="checkbox" name="dry_run" value="1" checked> dry run (show payload, send nothing)</label>
     <label><input type="checkbox" name="allow_duplicates" value="1"> allow duplicates</label>
     <label><input type="checkbox" name="mark_imported_ui" value="1" checked onchange="document.getElementById('mark_imported').value = this.checked ? '1' : '0'"> mark as imported from dive computer (icon + computer field in the app)</label>

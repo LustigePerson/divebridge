@@ -97,6 +97,11 @@ def test_push_with_options_dry_run(sample_bytes, monkeypatch):
                                           "site_id_0": "441938",
                                           "o_buddy": "77", "o_notes": "test"})
     assert r.status_code == 200 and "dry-run" in r.text
+    # UDDF via POST carries the form's buddy, site and notes; GET stays plain
+    u = c.post(f"/batch/{bid}/uddf", data={"selected": "0", "same_for_all": "1", "o_buddy": "77",
+                                           "o_notes": "test", "site_id_0": "441938"})
+    assert u.status_code == 200 and b"<lastname>Muster</lastname>" in u.content and b"Blue Hole" in u.content
+    assert b"<buddy" not in c.get(f"/batch/{bid}/uddf").content
     res = webapp.state.batches[bid].results[0]
     assert res.log_nr == 4
     assert res.payload["odin_user_log_var_tanktype_id"] == 20

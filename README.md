@@ -17,7 +17,8 @@ The code is split into *importers* (input format → canonical dive model) and *
 2. Review the parsed dives, pick the SSI dive site (auto-suggested from the site name), see which
    dives already exist in your logbook.
 3. Either download **UDDF** (for divelogs.de, Subsurface, MacDive, …) or push the selected dives
-   to **SSI** – with a dry run that shows the exact payload first.
+   to **SSI** – with a dry run that shows the exact payload first. The UDDF carries the buddies,
+   dive site and notes chosen in the review form, so it is a complete archive of what went to SSI.
 
 Everything is also available on the command line (`divebridge --help`).
 

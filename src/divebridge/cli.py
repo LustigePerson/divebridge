@@ -66,17 +66,21 @@ def cmd_inspect(args: argparse.Namespace, _: Settings) -> int:
 
 
 def cmd_export_uddf(args: argparse.Namespace, settings: Settings) -> int:
+    from .exporters.uddf import UddfExtras
+
     dives = _load(args.files)
     out = Path(args.output or settings.output_dir)
     out.mkdir(parents=True, exist_ok=True)
+    buddies = [(n.split(" ", 1)[0], n.split(" ", 1)[1] if " " in n else "") for n in (args.buddy or [])]
+    extra = UddfExtras(buddies=buddies, notes=args.notes) if (buddies or args.notes) else None
     if args.single:
         f = out / "dives.uddf"
-        f.write_bytes(dives_to_uddf(dives))
+        f.write_bytes(dives_to_uddf(dives, extras={i: extra for i in range(len(dives))} if extra else None))
         print(f"wrote {f} ({len(dives)} dives)")
     else:
         for d in dives:
             f = out / uddf_filename(d)
-            f.write_bytes(dives_to_uddf([d]))
+            f.write_bytes(dives_to_uddf([d], extras={0: extra} if extra else None))
             print(f"wrote {f}")
     return 0
 
@@ -232,6 +236,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("files", nargs="+")
     s.add_argument("-o", "--output", help="output directory (default: DIVEBRIDGE_OUTPUT_DIR)")
     s.add_argument("--single", action="store_true", help="one file with all dives instead of one per dive")
+    s.add_argument("--buddy", action="append", metavar="'First Last'", help="buddy for all dives (repeatable)")
+    s.add_argument("--notes", help="note added to all dives")
     s.set_defaults(fn=cmd_export_uddf)
 
     s = sub.add_parser("ssi-login", help="check SSI credentials (SSI_EMAIL / SSI_PASSWORD)")

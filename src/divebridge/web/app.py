@@ -21,7 +21,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .. import __version__
 from ..exporters.ssi import PushResult, push_dives
-from ..exporters.uddf import dives_to_uddf, uddf_filename
+from ..exporters.uddf import UddfExtras, dives_to_uddf, uddf_filename
 from ..importers import ImportError_, detect, parse_file
 from ..importers.registry import expand_archive, is_zip_archive
 from ..model import Dive
@@ -109,15 +109,22 @@ class AppState:
             self._sites = SiteIndex(self.settings.data_dir, self.client())
         return self._sites
 
-    def buddies(self) -> list[tuple[int, str]]:
-        """(id, name) of the buddies known in the SSI logbook."""
+    def buddy_parts(self) -> dict[int, tuple[str, str]]:
+        """id -> (firstname, lastname) of the buddies known in the SSI logbook."""
         lb = self.logbook or {}
-        out = []
+        out: dict[int, tuple[str, str]] = {}
         for b in lb.get("logbook_buddies", []):
             if b.get("deleted") in (1, True):
                 continue
-            name = " ".join(x for x in (b.get("firstname"), b.get("lastname")) if x) or b.get("nickname") or str(b.get("id"))
-            out.append((int(b["id"]), name))
+            first, last = str(b.get("firstname") or ""), str(b.get("lastname") or "")
+            if not first and not last:
+                first = str(b.get("nickname") or b.get("id"))
+            out[int(b["id"])] = (first, last)
+        return out
+
+    def buddies(self) -> list[tuple[int, str]]:
+        """(id, display name) as SSI shows them."""
+        out = [(i, " ".join(x for x in parts if x)) for i, parts in self.buddy_parts().items()]
         return sorted(out, key=lambda x: x[1].lower())
 
     def refresh_logbook(self) -> dict[str, Any] | None:
@@ -338,26 +345,57 @@ def batch_page(request: Request, bid: str):
     return render(request, "batch.html", batch=batch, dive_facts=dive_facts)
 
 
-@app.get("/batch/{bid}/uddf")
-def batch_uddf(request: Request, bid: str):
+def _uddf_extras_from_form(form: Any, dives: list[Dive], indices: list[int]) -> dict[int, UddfExtras]:
+    """Buddies, chosen SSI site and notes from the review form, per dive (batch index)."""
+    parts = state.buddy_parts()
+    defaults = _options_from_form(form)
+    same = form.get("same_for_all") == "1"  # checkbox: "1" when ticked, absent otherwise (as in batch_ssi)
+    out: dict[int, UddfExtras] = {}
+    for i in indices:
+        opt = defaults if same else defaults.merged(_options_from_form(form, f"_{i}"))
+        x = UddfExtras(buddies=[parts[b] for b in opt.buddy_ids if b in parts], notes=opt.notes)
+        raw = str(form.get(f"site_id_{i}", "")).strip()
+        if raw.isdigit() and state.ssi_configured:
+            try:
+                m = state.sites().get(int(raw))
+            except Exception:  # noqa: BLE001
+                m = None
+            if m:
+                x.site_name, x.site_lat, x.site_lon = m.name, m.lat, m.lon
+        out[i] = x
+    return out
+
+
+@app.api_route("/batch/{bid}/uddf", methods=["GET", "POST"])
+async def batch_uddf(request: Request, bid: str):
+    """GET: plain export of all dives. POST (from the review form): includes buddies, chosen site
+    and notes, and only the selected dives."""
     batch = state.batches.get(bid)
     if batch is None or not batch.dives:
         return RedirectResponse(url=f"{_root(request)}/", status_code=303)
+    indices = list(range(len(batch.dives)))
+    extras: dict[int, UddfExtras] = {}
+    if request.method == "POST":
+        form = await request.form()
+        selected = [int(x) for x in form.getlist("selected") if str(x).isdigit()]
+        if selected:
+            indices = selected
+        extras = _uddf_extras_from_form(form, batch.dives, indices)
     out_dir = settings.output_dir
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
     except OSError:
         out_dir = None
-    if len(batch.dives) == 1:
-        d = batch.dives[0]
-        data, name, ctype = dives_to_uddf([d]), uddf_filename(d), "application/xml"
+    exports = [(batch.dives[i], dives_to_uddf([batch.dives[i]], extras={0: extras[i]} if i in extras else None)) for i in indices]
+    if len(exports) == 1:
+        d, data = exports[0]
+        name, ctype = uddf_filename(d), "application/xml"
         if out_dir:
             (out_dir / name).write_bytes(data)
     else:
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            for d in batch.dives:
-                x = dives_to_uddf([d])
+            for d, x in exports:
                 zf.writestr(uddf_filename(d), x)
                 if out_dir:
                     (out_dir / uddf_filename(d)).write_bytes(x)
