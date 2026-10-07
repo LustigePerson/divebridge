@@ -145,12 +145,13 @@ Open:
 
 - [x] First export from a real Cressi Da Vinci (pool dive, 2026-10-07): date format, device name
       `DAVINCI`, empty site, tank data without values – all handled.
-- [ ] Real open-water dives: memo, nitrox, several dives in one export file, GPS fields.
+- [ ] Real open-water dives: memo, nitrox, several dives in one export file.
 - [ ] Surface interval: DiveSync's `SurfTime` before the *first* dive of a day is the time since the
       computer was switched on (82 min observed for a first pool dive), not a real surface interval.
       Observe with real dives first; possibly a bug report to the app vendor, or a UI override.
-- [ ] Verify dive site mapping with real dives; use GPS from the export (`GPSStartDive`) for the
-      nearest-site lookup once a real export shows the coordinate format.
+- [ ] Dive sites: the Da Vinci has no GPS, and a site set in DiveSync (name only) cannot be mapped
+      to an SSI site automatically, so the site stays a manual choice in the review page. Check
+      what the `GPSStartDive` export column contains once a site is set in DiveSync.
 - [ ] Companion app: once [home-assistant/android#7549](https://github.com/home-assistant/android/pull/7549)
       is released, drop the single-file input for Android WebViews (`is_companion_app` in
       `web/app.py`) and allow multi-select in the app again. Browser geolocation in the app needs
