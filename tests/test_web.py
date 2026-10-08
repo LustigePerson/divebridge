@@ -180,3 +180,10 @@ def test_dry_run_default_off(sample_bytes):
     r = c.post("/upload", files=[("files", ("s.xlsx", sample_bytes, "application/octet-stream"))], follow_redirects=True)
     assert 'name="dry_run" value="1" checked' not in r.text   # default off, configurable via dry_run_default
     assert 'name="dry_run" value="1" >' in r.text or 'name="dry_run" value="1">' in r.text
+
+
+def test_api_check_without_login():
+    c = TestClient(app)
+    r = c.get("/api/check?level=read")
+    assert r.status_code == 200 and r.json()["ok"] is False and "not configured" in r.json()["error"]
+    assert "Connection check" in c.get("/").text

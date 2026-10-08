@@ -136,6 +136,20 @@ def cmd_ssi_verify(args: argparse.Namespace, settings: Settings) -> int:
     return rc
 
 
+def cmd_ssi_check(args: argparse.Namespace, settings: Settings) -> int:
+    """Connection check; exit code 0 = ok, 1 = failed. --write uploads and deletes a test dive."""
+    from .ssi.check import run_check
+
+    res = run_check(_client(settings), "write" if args.write else "read", settings.data_dir)
+    if args.json:
+        print(json.dumps(res.to_dict(), indent=1))
+    else:
+        for s in res.steps:
+            print(f"  {'ok ' if s.ok else '!! '}{s.name:24s} {s.detail}  ({s.ms} ms)")
+        print(res.summary())
+    return 0 if res.ok else 1
+
+
 def cmd_ssi_vars(args: argparse.Namespace, settings: Settings) -> int:
     """Print the SSI logbook variable definitions (id -> name) as the MySSI app loads them."""
     from .ssi.vars import GROUPS, VarIndex, pretty
@@ -251,6 +265,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("files", nargs="+")
     s.add_argument("-v", "--all-fields", action="store_true", dest="all_fields", help="show all fields, not only differences")
     s.set_defaults(fn=cmd_ssi_verify)
+
+    s = sub.add_parser("ssi-check", help="check the SSI connection (login, logbook, sites; --write: upload+delete a test dive)")
+    s.add_argument("--write", action="store_true", help="full round trip: upload a test dive, read back, delete")
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(fn=cmd_ssi_check)
 
     s = sub.add_parser("ssi-vars", help="show SSI logbook variable ids (weather, water, entry, ...)")
     s.add_argument("--all", action="store_true", help="include freediving/XR/CCR groups")

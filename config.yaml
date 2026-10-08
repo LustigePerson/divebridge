@@ -1,5 +1,5 @@
 name: divebridge
-version: "0.1.14"
+version: "0.1.15"
 slug: divebridge
 description: Import dive computer exports (Cressi DiveSync) into the SSI logbook and export UDDF
 url: https://github.com/LustigePerson/divebridge

@@ -28,6 +28,50 @@ multi-selection results), so inside the app the upload field takes one file: a s
 ZIP containing all exports (file manager: select the files → compress). In the phone's browser
 several files can be selected directly.
 
+## Connection check from a Home Assistant automation
+
+The add-on answers `GET http://<addon-hostname>:8099/api/check?level=read|write` with JSON
+(`ok`, `steps`, …). The hostname is shown on the add-on's start page under *Connection check*
+(e.g. `local-divebridge` or `<repo-id>-divebridge`). `write` uploads a one-minute test dive dated
+2000-01-01 and deletes it again – that is the only check that proves uploads really work.
+
+`configuration.yaml`:
+
+```yaml
+rest_command:
+  divebridge_check:
+    url: "http://<addon-hostname>:8099/api/check?level=write"
+    timeout: 120
+```
+
+Automation (run it when you like – before a holiday, weekly, by button):
+
+```yaml
+alias: divebridge SSI check
+triggers:
+  - trigger: time
+    at: "04:00:00"
+conditions: []
+actions:
+  - action: rest_command.divebridge_check
+    response_variable: result
+  - if:
+      - condition: template
+        value_template: "{{ not result.content.ok }}"
+    then:
+      - action: persistent_notification.create
+        data:
+          title: "divebridge: SSI check failed"
+          notification_id: divebridge_ssi_check
+          message: >-
+            {% for s in result.content.steps if not s.ok %}{{ s.name }}: {{ s.detail }}
+            {% endfor %}{{ result.content.error or '' }}
+    else:
+      - action: persistent_notification.dismiss
+        data:
+          notification_id: divebridge_ssi_check
+```
+
 ## After uploading
 
 The MySSI app does not notice server-side changes immediately: pull to refresh the logbook or

@@ -46,6 +46,24 @@
   {% endif %}
 </div>
 
+<div class="card">
+  <h2>Connection check</h2>
+  <form method="post" action="{{ root }}/check" class="row">
+    <button type="submit" name="level" value="read" {% if not state.ssi_configured %}disabled{% endif %}>Check SSI (read)</button>
+    <button type="submit" name="level" value="write" {% if not state.ssi_configured %}disabled{% endif %} title="uploads a 1-minute test dive dated 2000-01-01 and deletes it again">Check SSI (write round trip)</button>
+    <span class="muted">write: uploads a test dive and deletes it again – proves that uploads really work</span>
+  </form>
+  {% if check %}
+  <p class="{{ 'ok' if check.ok else 'err' }}" style="margin-top:10px"><b>{{ check.summary() }}</b> <span class="muted">({{ check.started }})</span></p>
+  <table>{% for s in check.steps %}<tr><td class="{{ 'ok' if s.ok else 'err' }}">{{ 'ok' if s.ok else 'FAIL' }}</td><td>{{ s.name }}</td><td>{{ s.detail }}</td><td class="muted">{{ s.ms }} ms</td></tr>{% endfor %}</table>
+  {% endif %}
+  <details style="margin-top:8px"><summary class="muted">run it from a Home Assistant automation</summary>
+  <p class="muted">Home Assistant can call this add-on directly at <code>http://{{ hostname }}:8099/api/check?level=write</code>
+  (internal network, no port mapping needed). See the add-on documentation for a ready-made <code>rest_command</code> + automation that
+  creates a notification when the check fails.</p>
+  </details>
+</div>
+
 {% if batches %}
 <div class="card">
   <h2>Recent uploads</h2>

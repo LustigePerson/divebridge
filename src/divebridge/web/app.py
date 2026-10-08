@@ -8,6 +8,7 @@ import logging
 import os
 import secrets
 import shutil
+import socket
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -230,7 +231,7 @@ def index(request: Request):
     batches = sorted(state.batches.values(), key=lambda b: b.created, reverse=True)
     companion = is_companion_app(request)
     log.info("index: serving %s upload form", "single-file (companion app)" if companion else "multi-file")
-    return render(request, "index.html", batches=batches, companion=companion)
+    return render(request, "index.html", batches=batches, companion=companion, hostname=socket.gethostname())
 
 
 def _safe_next(next_: str | None) -> str:
@@ -473,6 +474,31 @@ def _site_json(m: SiteMatch, visited: set[int]) -> dict[str, Any]:
     return {"id": m.id, "label": m.label + (" ★" if m.id in visited else ""), "name": m.name,
             "lat": m.lat, "lon": m.lon, "bow": m.bow,
             "distance_km": round(m.distance_m / 1000, 1) if m.distance_m is not None else None}
+
+
+@app.api_route("/api/check", methods=["GET", "POST"])
+def api_check(level: str = "read"):
+    """Connection check as JSON – for Home Assistant automations (rest_command) and the UI.
+    level=read: login, logbook, variables, sites. level=write: also upload + delete a test dive."""
+    from ..ssi.check import run_check
+
+    if not state.ssi_configured:
+        return JSONResponse({"ok": False, "level": level, "error": "SSI not configured", "steps": []}, status_code=200)
+    res = run_check(state.client(), "write" if level == "write" else "read", settings.data_dir)
+    state.logbook = None  # the write check changes and restores the logbook; drop the cache
+    log.info("ssi check (%s): %s", res.level, res.summary())
+    return res.to_dict()
+
+
+@app.post("/check", response_class=HTMLResponse)
+def check_page(request: Request, level: str = Form("read")):
+    from ..ssi.check import run_check
+
+    res = run_check(state.client(), "write" if level == "write" else "read", settings.data_dir) if state.ssi_configured else None
+    state.logbook = None
+    batches = sorted(state.batches.values(), key=lambda b: b.created, reverse=True)
+    return render(request, "index.html", batches=batches, companion=is_companion_app(request), check=res,
+                  hostname=socket.gethostname())
 
 
 @app.get("/api/sites")
