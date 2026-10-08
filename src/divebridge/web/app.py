@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import ipaddress
 import logging
 import os
 import secrets
@@ -34,7 +35,10 @@ from ..ssi.vars import GROUPS, MULTI_GROUPS, VarIndex
 from ..ssi.sites import SiteIndex, SiteMatch
 
 log = logging.getLogger(__name__)
-HA_INGRESS_IP = "172.30.32.2"
+# The Supervisor's internal network: 172.30.32.1 = Supervisor (also the source of calls from HA
+# automations), 172.30.32.2 = HA Core (ingress proxy), 172.30.33.x = add-ons. Not reachable from
+# outside, so in ingress-only mode anything from this network is accepted.
+HA_INTERNAL_NET = ipaddress.ip_network("172.30.32.0/23")
 
 
 def configure_logging() -> None:
@@ -198,10 +202,17 @@ def _options_from_form(form: Any, suffix: str = "") -> DiveOptions:
     )
 
 
+def _is_internal(host: str) -> bool:
+    try:
+        return ipaddress.ip_address(host) in HA_INTERNAL_NET
+    except ValueError:
+        return False
+
+
 @app.middleware("http")
 async def ingress_guard(request: Request, call_next):
-    if settings.ingress_only and request.client and request.client.host != HA_INGRESS_IP:
-        log.warning("rejected request from %s (ingress-only mode; expected %s)", request.client.host, HA_INGRESS_IP)
+    if settings.ingress_only and request.client and not _is_internal(request.client.host):
+        log.warning("rejected request from %s (ingress-only mode; expected %s)", request.client.host, HA_INTERNAL_NET)
         return Response("forbidden (ingress only)", status_code=403)
     response = await call_next(request)
     # dynamic pages must never be served from a browser/WebView cache (stale forms, stale batches)

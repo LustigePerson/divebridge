@@ -187,3 +187,12 @@ def test_api_check_without_login():
     r = c.get("/api/check?level=read")
     assert r.status_code == 200 and r.json()["ok"] is False and "not configured" in r.json()["error"]
     assert "Connection check" in c.get("/").text
+
+
+def test_ingress_guard_accepts_supervisor_network():
+    from divebridge.web.app import _is_internal
+
+    assert _is_internal("172.30.32.2")   # HA Core / ingress
+    assert _is_internal("172.30.32.1")   # Supervisor – source of rest_command calls from automations
+    assert _is_internal("172.30.33.7")   # another add-on
+    assert not _is_internal("192.168.1.10") and not _is_internal("172.30.34.1") and not _is_internal("nope")
