@@ -24,3 +24,16 @@ def test_find_by_ref_and_time():
     assert find_existing(_dive("2025-10-15T03:30:00"), log) is None
     assert next_log_number(log) == 7
     assert next_log_number([]) == 1
+
+
+def test_prefer_log_number_among_duplicates():
+    log = [
+        {"odin_user_log_nr": 8, "odin_user_log_date": "2026-10-12", "odin_user_log_entry_time": "15:01",
+         "odin_user_log_divecomputer_dive_ref": "2026-10-12T15:01:05", "odin_user_log_verified": True},
+        {"odin_user_log_nr": 10, "odin_user_log_date": "2026-10-12", "odin_user_log_entry_time": "15:01",
+         "odin_user_log_divecomputer_dive_ref": "2026-10-12T15:01:05"},
+    ]
+    d = _dive("2026-10-12T15:01:05")
+    assert find_existing(d, log)["odin_user_log_nr"] == 8            # default: first match (duplicate check)
+    assert find_existing(d, log, prefer_nr=10)["odin_user_log_nr"] == 10  # read-back after an allowed duplicate upload
+    assert find_existing(d, log, prefer_nr=99)["odin_user_log_nr"] == 8   # unknown number: fall back

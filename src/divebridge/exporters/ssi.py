@@ -113,7 +113,7 @@ def push_dives(client: SsiClient, dives: list[Dive], site_ids: dict[int, int | N
                 r.status = "error"
                 r.message = "sent, but the logbook could not be read back to confirm – check in the MySSI app"
                 continue
-            r.stored = find_existing(r.dive, fresh)
+            r.stored = find_existing(r.dive, fresh, prefer_nr=r.log_nr)
             if r.stored is None:
                 r.status = "error"
                 r.message = ("SSI acknowledged the upload but the dive is NOT in the logbook "
