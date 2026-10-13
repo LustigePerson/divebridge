@@ -112,6 +112,9 @@ Known facts and quirks:
 - Surface interval (`si_before`) is in **seconds**; MySSI shows it as hh:mm.
 - Water type ids: 5 = salt, 4 = fresh (the reference project had this the other way round).
   Default "auto" takes it from the chosen SSI dive site.
+- Per-sample ascent/descent speed (`s`, m/min, negative = descending) comes from the export's
+  `SpeedFpm` (signed 16-bit, feet per minute). GF per sample (`GfLocalPercent`) and GF@surface are
+  not provided by the Da Vinci export, so `gs` is sent as 0.
 - Gradient factors are sent as the export reports them (e.g. 89/89) even though DiveSync displays
   the conservatism preset as "C0 90/90". The export has no column for the preset.
 - Memo from DiveSync becomes the SSI note; UI notes are appended.

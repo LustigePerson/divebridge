@@ -122,3 +122,17 @@ def test_unknown_device_name_kept_as_is():
     d = CressiDiveSyncImporter()._dive("f.xlsx", row, [], [], {})
     assert d.computer.display_name == "GRAVITON" and d.computer.manufacturer == ""
     assert build_payload(d, 1, None)["odin_user_log_divecomputer_manufacturer"] is None
+
+
+def test_speed_passed_through_to_samples():
+    from pathlib import Path
+
+    from divebridge.importers import parse_file
+    from divebridge.ssi.payload import resample
+
+    f = Path(__file__).parent / "data" / "cressi" / "DAVINCI_002001_10_12_2026_150105.xlsx"
+    d = parse_file(f.name, f.read_bytes())[0]
+    s = resample(d)
+    # descent at the start: export SpeedFpm -58 (= -17.7 m/min), negative = descending
+    assert s[0]["s"] == -17.7
+    assert any(x["s"] < -10 for x in s[:10]) and any(x["s"] > 0 for x in s)

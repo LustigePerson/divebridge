@@ -148,6 +148,9 @@ def resample(dive: Dive, interval_s: int = SAMPLE_INTERVAL_S) -> list[dict[str, 
             mf |= FLAG_AT_DEPTH
         if depth <= 1.0:
             mf |= FLAG_SURFACED
+        # ascent/descent speed in m/min, negative = descending – the same convention the Cressi
+        # export uses (SpeedFpm, signed), so it is passed through; 0 for the synthetic surface point
+        speed = near.speed_m_min if (near.speed_m_min is not None and t <= t_end) else 0.0
         sample: dict[str, Any] = {
             "a": 0,
             "d": depth,
@@ -157,7 +160,7 @@ def resample(dive: Dive, interval_s: int = SAMPLE_INTERVAL_S) -> list[dict[str, 
             "n": n,
             "ndl": round(ndl, 1) if isinstance(ndl, float) else ndl,
             "o": False,
-            "s": 0,
+            "s": round(speed, 1),
             "t": t * 1000,
             "te": round(temp, 2) if temp is not None else 0,
         }
