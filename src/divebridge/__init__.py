@@ -1,6 +1,11 @@
 """divebridge – bring dive computer exports into SSI (MySSI) and UDDF."""
 
-__version__ = "0.1.17"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("divebridge")  # single source: pyproject.toml (config.yaml carries the add-on version)
+except PackageNotFoundError:  # running from a checkout without an installed package
+    __version__ = "0.0.0+unknown"
 
 
 def main() -> None:  # entry point for `divebridge` script

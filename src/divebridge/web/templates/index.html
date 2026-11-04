@@ -50,7 +50,7 @@
   <h2>Connection check</h2>
   <form method="post" action="{{ root }}/check" class="row">
     <button type="submit" name="level" value="read" {% if not state.ssi_configured %}disabled{% endif %}>Check SSI (read)</button>
-    <button type="submit" name="level" value="write" {% if not state.ssi_configured %}disabled{% endif %} title="uploads a 1-minute test dive dated 2000-01-01 and deletes it again">Check SSI (write round trip)</button>
+    <button type="submit" name="level" value="write" {% if not state.ssi_configured %}disabled{% endif %} title="uploads a 1-minute test dive dated today and deletes it again">Check SSI (write round trip)</button>
     <span class="muted">write: uploads a test dive and deletes it again – proves that uploads really work</span>
   </form>
   {% if check %}

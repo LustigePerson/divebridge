@@ -48,7 +48,8 @@ def test_write_check_round_trip(tmp_path, monkeypatch):
     assert names[-4:] == ["save_divelog", "read back", "delete", "read back after delete"]
     assert c.get_divelog()["logbook_details"] == []            # test dive removed again
     assert c.dives[0]["odin_user_log_comment"] == TEST_DIVE_NOTE
-    assert c.dives[0]["odin_user_log_date"] == "2000-01-01"
+    from datetime import date
+    assert c.dives[0]["odin_user_log_date"] == date.today().isoformat()  # never before real dives: SSI's "diving since" follows the earliest dive
 
 
 def test_write_check_detects_stub(tmp_path, monkeypatch):

@@ -50,8 +50,12 @@ class CheckResult:
 
 
 def _test_dive() -> Dive:
-    """A tiny, clearly artificial dive: year 2000, 1 minute, 1.5 m, 'divebridge check' computer."""
-    start = datetime(2000, 1, 1, 0, 0, 0)
+    """A tiny, clearly artificial dive: today 00:00:30, 1 minute, 1.5 m, 'divebridge check' computer.
+
+    The date must not lie before the user's real dives: SSI derives the profile's "diving since"
+    from the earliest dive and does not restore it when that dive is deleted (a year-2000 test dive
+    reset a user's profile every night – 2026-11)."""
+    start = datetime.now().replace(hour=0, minute=0, second=30, microsecond=0)
     samples = [Sample(t_s=t, depth_m=1.5 if 0 < t < 60 else 0.0, temp_c=20.0) for t in (0, 5, 30, 55, 60)]
     return Dive(start=start, duration_s=60, max_depth_m=1.5, avg_depth_m=1.2, water_temp_min_c=20.0,
                 water_temp_max_c=20.0, computer=DiveComputer("divebridge", "check", serial="0"),

@@ -33,7 +33,9 @@ several files can be selected directly.
 The add-on answers `GET http://<addon-hostname>:8099/api/check?level=read|write` with JSON
 (`ok`, `steps`, …). The hostname is shown on the add-on's start page under *Connection check*
 (e.g. `local-divebridge` or `<repo-id>-divebridge`). `write` uploads a one-minute test dive dated
-2000-01-01 and deletes it again – that is the only check that proves uploads really work.
+today and deletes it again – that is the only check that proves uploads really work. (The test dive
+is dated today on purpose: SSI derives the profile's "diving since" from the earliest dive and does
+not restore it when that dive is deleted.)
 
 `configuration.yaml`:
 
